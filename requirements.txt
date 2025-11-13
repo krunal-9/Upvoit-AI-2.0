@@ -1,0 +1,13 @@
+flask
+flask_cors
+pydantic
+logging
+sqlparse
+langgraph
+langchain
+langchain-openai
+sqlalchemy
+dotenv
+pyodbc
+jwt
+pyjwt
