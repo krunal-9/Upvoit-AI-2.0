@@ -1,18 +1,12 @@
 This database supports the Upvoit Field Service Management platform. It organizes information around Companies, their Clients, the Jobs performed for those clients, and the Users (technicians, admins) who perform the work.
 
 Key processes tracked include:
-- Scheduling: Handled by `Schedule` and `Visits` tables, which store information about one-off and recurring job schedules, respectively. These tables are linked to `Job` and `Company` tables. Use both tables unless specified.
 - Work Logging: Technician hours are tracked in `Timesheet`.
 - Billing: Managed through `Quotation`, `Invoice`, and `Payment` tables.
 - Payroll: Processed using `Payroll` and related tables (`Payroll_Expense`, `Payroll_LoggedHours`, `Payroll_OtherExpense`) based on `Timesheet` data.
 - Supporting Data: Includes checklists (`checkList`, `checkListDetails`), documents (`companyDocument`), expenses (`expenses`), client properties (`clientProperty`), and various configurations (e.g., `JobType`, `Services`, `Tax`).
 
 CRITICAL TABLE RELATIONSHIPS TO REMEMBER:
-- `job` table = The core job record that connects to both `Schedule` and `Visits` depending on job type
-- `Schedule` table = ONE-OFF jobs (single occurrence, doesn't repeat)
-- `Visits` table = RECURRING jobs (jobs that repeat multiple times)
-- `ScheduleUser` table = Links users to one-off jobs (always use with `Schedule` table)
-- `VisitUser` table = Links users to recurring job visits (always use with `Visits` table)
 - `Users` table = Contains all employee/technician information
 - `Clients` table = Contains all customer information
 - `clientProperty` table = Contains client addresses and property details
