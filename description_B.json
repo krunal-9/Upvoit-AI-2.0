@@ -24,7 +24,7 @@
                 "Column Name": "TaxPosition",
                 "Data Type": "int",
                 "constraints": "",
-                "description": "This column defines the tax calculation order — whether the discount is applied before tax (Position 1) or after tax (Position 2)."
+                "description": "Defines tax calculation method: Position 1 = Apply discount first, then tax ((BaseTotal – Discount) + Tax); Position 2 = Apply tax first, then discount ((BaseTotal + Tax) – Discount)."
             },
             {
                 "Column Name": "TimeZone",
@@ -250,7 +250,7 @@
             }
         ]
     },
-    "Users": {
+    "users": {
         "description": "The Users table stores information about all individuals who interact with the system, including employees, administrators, and contractors. Each user is associated with a record in the Company table. The table includes fields for personal information (name, email, phone, address) and login details (email, password).",
         "columns": [
             {
@@ -501,7 +501,7 @@
             }
         ]
     },
-    "CompanyUsers": {
+    "companyUsers": {
         "description": "The CompanyUsers table defines the relationship between companies and users, indicating which employees, administrators, or contractors belong to each company. This table is especially useful in systems that support multiple companies and users, as it enables efficient management and tracking of users within their respective organizations. Additionally, the CompanyUsers table stores user-specific details per company, such as work information and rate details used for payroll and invoicing purposes.",
         "columns": [
             {
@@ -723,7 +723,7 @@
                 "Column Name": "PaymentTerm",
                 "Data Type": "int",
                 "constraints": "",
-                "description": "Client’s payment terms (e.g., DueOnReceipt = 1,\nNet7Days = 2,\nNet14Days = 3,\nNet30Days = 4,\nNet45Days = 5,\nNet60Days = 6,\nNet90Days = 7)."
+                "description": "Client’s payment terms (e.g., 1=Due on Receipt, 2=Net 7, 3=Net 14, 4=Net 30, 5=Net 45, 6=Net 60, 7=Net 90)."
             },
             {
                 "Column Name": "Prefix",
@@ -937,7 +937,7 @@
             }
         ]
     },
-    "ClientProperty": {
+    "clientProperty": {
         "description": "The ClientProperty table stores details about properties or locations linked to a client. For example, a client may have multiple offices, or sites where jobs and services are performed. This table helps companies manage work at specific client locations by keeping property-related details (like address or site info) separate from the main client record.",
         "columns": [
             {
@@ -1068,7 +1068,7 @@
             }
         ]
     },
-    "ClientContact": {
+    "clientContact": {
         "description": "The ClientContact table stores information about individuals associated with a client, such as the primary contact, billing contact, or site contact",
         "columns": [
             {
@@ -1193,7 +1193,7 @@
             }
         ]
     },
-    "Countries": {
+    "countries": {
         "description": "The Countries table stores a list of countries along with their details such as country name, code, mobile code, and currency. It is mainly used to link users, clients,ClientProperty, and companies to their country, for address management and currency handling.",
         "columns": [
             {
@@ -1234,7 +1234,7 @@
             }
         ]
     },
-    "CheckList": {
+    "checkList": {
         "description": "The CheckList table stores predefined lists of tasks, steps, or items that need to be completed as part of a job, visit, or project. It serves as the master record for checklist templates used across the system.",
         "columns": [
             {
@@ -1293,7 +1293,7 @@
             }
         ]
     },
-    "CheckListDetails": {
+    "checkListDetails": {
         "description": "The CheckListDetails table stores the individual items or tasks that belong to a checklist. Each record represents a single step (like  Check equipment, Take photos,  or  Get client signature ) that is part of a larger checklist. It helps break down a checklist into detailed actions so they can be tracked and completed one by one.",
         "columns": [
             {
@@ -1358,7 +1358,7 @@
             }
         ]
     },
-    "DocumentCategory": {
+    "documentCategory": {
         "description": "The DocumentCategory table is used to group company documents into categories",
         "columns": [
             {
@@ -1381,7 +1381,7 @@
             }
         ]
     },
-    "DocumentSubCategory": {
+    "documentSubCategory": {
         "description": "The DocumentSubCategory table is used to create sub-categories under a main document category. Each sub-category is linked to a company and a document category, making it easier to organize documents in a more detailed way (for example, under  Financial  →  Invoices ,  Receipts ).",
         "columns": [
             {
@@ -1410,7 +1410,7 @@
             }
         ]
     },
-    "CompanyDocument": {
+    "companyDocument": {
         "description": "The CompanyDocument table stores all the important files and documents related to a company. Each record represents one uploaded document (like licenses, contracts, policies, or certificates) that belongs to a company. Document uploaded by category and sub-category. Also Document type is defined as a Private document or a public Document.",
         "columns": [
             {
@@ -1505,7 +1505,7 @@
             }
         ]
     },
-    "Currency": {
+    "currency": {
         "description": "The Currency table stores information about different currencies, including their name, code, and symbol.It is mainly used to support financial transactions, invoicing, and international payments by linking to countries and companies.",
         "columns": [
             {
@@ -1534,7 +1534,7 @@
             }
         ]
     },
-    "DocNumbers": {
+    "docNumbers": {
         "description": "The DocNumbers table is used to manage document numbering for different records (like invoices, jobs, or quotes). It helps keep documents organized by storing the next number, prefix, suffix, and formatting rules for each company.",
         "columns": [
             {
@@ -1575,7 +1575,7 @@
             }
         ]
     },
-    "Feedback": {
+    "feedback": {
         "description": "The Feedback table stores different feedback categories created by a company",
         "columns": [
             {
@@ -1628,7 +1628,7 @@
             }
         ]
     },
-    "FeedbackQuestions": {
+    "feedbackQuestions": {
         "description": "The FeedbackQuestions table stores the list of questions linked to a specific feedback category. It allows companies to define what questions will be asked when collecting feedback from clients or technicians.",
         "columns": [
             {
@@ -1687,7 +1687,7 @@
             }
         ]
     },
-    "FeedbackResponse": {
+    "feedbackResponse": {
         "description": "The FeedbackResponse table stores the answers given to feedback questions. It links each response to a job, client, and feedback form, capturing ratings or comments submitted.",
         "columns": [
             {
@@ -1823,7 +1823,7 @@
             }
         ]
     },
-    "Industry": {
+    "industry": {
         "description": "The Industry table stores a list of industries (like Construction, IT, Healthcare, etc.) that a company may belong to.",
         "columns": [
             {
@@ -1840,7 +1840,7 @@
             }
         ]
     },
-    "IndustryServices": {
+    "industryServices": {
         "description": "The IndustryServices table stores the list of services offered within a specific industry.",
         "columns": [
             {
@@ -1924,7 +1924,7 @@
                 "Column Name": "TaxPosition",
                 "Data Type": "int",
                 "constraints": "",
-                "description": "Defines tax calculation method (e.g., BaseTotal - Discount + Tax vs BaseTotal + Tax - Discount)."
+                "description": "Defines tax calculation method: Position 1 = Apply discount first, then tax ((BaseTotal – Discount) + Tax); Position 2 = Apply tax first, then discount ((BaseTotal + Tax) – Discount)."
             },
             {
                 "Column Name": "TaxId",
@@ -2092,7 +2092,7 @@
                 "Column Name": "InvoiceStatus",
                 "Data Type": "int",
                 "constraints": "",
-                "description": "Current status (e.g.\n  DRAFT = 1,\n  AWAITING_PAMENTS = 2,\n  PAID = 3,)."
+                "description": "Current status: 1 = Draft, 2 = Awaiting Payment (Not Yet Due if PaymentDueDate >= CurrentDate, Past Due if PaymentDueDate < CurrentDate), 3 = Paid, 7 = Refund."
             },
             {
                 "Column Name": "MoreAction",
@@ -2210,7 +2210,7 @@
             }
         ]
     },
-    "InvoiceAttachment": {
+    "invoiceAttachment": {
         "description": "The InvoiceAttachment table stores files or documents related to an invoice, such as receipts, PDFs, or supporting documents.",
         "columns": [
             {
@@ -2293,7 +2293,7 @@
             }
         ]
     },
-    "InvoiceDetails": {
+    "invoiceDetails": {
         "description": "The InvoiceDetails table stores detailed line items for each invoice, including services or products, their quantities, unit prices, and total costs. Each record represents a single item or service on an invoice and includes relevant metadata for tracking and auditing.",
         "columns": [
             {
@@ -2436,7 +2436,7 @@
             }
         ]
     },
-    "InvoiceLaborCost": {
+    "invoiceLaborCost": {
         "description": "The InvoiceLaborCost table stores detailed labor charges for an invoice, including hours worked, employee costs, billing rates, and overtime or premium calculations. It helps companies track labor expenses and generate accurate billing for client jobs.",
         "columns": [
             {
@@ -2735,7 +2735,7 @@
             }
         ]
     },
-    "InvoiceExpenseCost": {
+    "invoiceExpenseCost": {
         "description": "The InvoiceExpenseCost table stores the expenses related to an invoice, such as materials, travel, or other costs incurred for a job.",
         "columns": [
             {
@@ -2842,7 +2842,7 @@
             }
         ]
     },
-    "Reminder": {
+    "reminder": {
         "description": "The Reminder table stores scheduled reminders for jobs, invoices, tasks, or other activities within a company. Each record represents a single reminder and includes details about timing, recurrence, recipients, and notification preferences.",
         "columns": [
             {
@@ -2985,7 +2985,7 @@
             }
         ]
     },
-    "ReportColumnDetails": {
+    "reportColumnDetails": {
         "description": "The ReportColumnDetails table stores information about the columns displayed in different reports for a company.",
         "columns": [
             {
@@ -3062,7 +3062,7 @@
             }
         ]
     },
-    "Request": {
+    "request": {
         "description": "The Request table stores requests submitted by clients. It tracks details such as request type, status, assigned users, and related client information, enabling companies to manage and respond to client requests efficiently. Within the Request module, there is an On-Site Assessment feature, where users can schedule a date and time for the assessment and assign it to a team and technicians.",
         "columns": [
             {
@@ -3199,7 +3199,7 @@
             }
         ]
     },
-    "RequestAttachment": {
+    "requestAttachment": {
         "description": "The RequestAttachment table stores files or documents related to a client request, such as photos, PDFs, or supporting documents.",
         "columns": [
             {
@@ -3282,7 +3282,7 @@
             }
         ]
     },
-    "RequestDetails": {
+    "requestDetails": {
         "description": "The RequestDetails table stores detailed information about a client request, including service description",
         "columns": [
             {
@@ -3389,7 +3389,7 @@
             }
         ]
     },
-    "Roles": {
+    "roles": {
         "description": "The Roles table stores the different user roles within a company, such as admin, manager, or technician.",
         "columns": [
             {
@@ -3418,7 +3418,7 @@
             }
         ]
     },
-    "Services": {
+    "services": {
         "description": "The Services table stores all the services offered by a company, including details like name, description, quantity, cost, and pricing.",
         "columns": [
             {
@@ -3573,7 +3573,7 @@
             }
         ]
     },
-    "ServiceTemplate": {
+    "serviceTemplate": {
         "description": "The ServiceTemplate table stores predefined templates for services, including total cost, title, and rate settings.",
         "columns": [
             {
@@ -3650,7 +3650,7 @@
             }
         ]
     },
-    "Shift": {
+    "shift": {
         "description": "The Shift table stores work shifts for a company, including start and end times and whether the shift is active.",
         "columns": [
             {
@@ -3691,7 +3691,7 @@
             }
         ]
     },
-    "TemplateDetails": {
+    "templateDetails": {
         "description": "The TemplateDetails table stores detailed information and configurations for templates linked to ServiceTemplate.",
         "columns": [
             {
@@ -3816,7 +3816,7 @@
             }
         ]
     },
-    "Tax": {
+    "tax": {
         "description": "The Tax table stores tax rates and related information used in billing, invoicing, and expense calculations. It helps companies apply the correct taxes to services, products, and financial transactions.",
         "columns": [
             {
@@ -3929,7 +3929,7 @@
             }
         ]
     },
-    "TaxAgency": {
+    "taxAgency": {
         "description": "The TaxAgency table stores information about tax agencies associated with a company, including QuickBooks integration details.",
         "columns": [
             {
@@ -3970,7 +3970,7 @@
             }
         ]
     },
-    "Team": {
+    "team": {
         "description": "The Team table stores information about teams within a company, including team name, supervisor, and associated users.",
         "columns": [
             {
@@ -4017,7 +4017,7 @@
             }
         ]
     },
-    "TeamUsers": {
+    "teamUsers": {
         "description": "The TeamUsers table links users to specific teams within a company, including information about supervisors.",
         "columns": [
             {
@@ -4076,7 +4076,7 @@
             }
         ]
     },
-    "UserDocument": {
+    "userDocument": {
         "description": "The UserDocument table stores documents or files related to users",
         "columns": [
             {
@@ -4147,7 +4147,7 @@
             }
         ]
     },
-    "Timesheet": {
+    "timesheet": {
         "description": "The Timesheet table stores data related to user work hours, including clock-in and clock-out times logged by users while working on jobs. It plays a key role in both payroll calculations and invoice generation.This tables holds User ID,Clock In / Clock Out Times,Logged Hours (Regular and Overtime),Job Reference,Cost Details (used for payroll),Billing Details (used for invoicing) This table is used to calculate payable hours for payroll. Also used to determine billable hours for client invoicing. Supports tracking of both regular hours and overtime hours.",
         "columns": [
             {
@@ -4500,7 +4500,7 @@
             }
         ]
     },
-    "Timezone": {
+    "timezone": {
         "description": "The TimeZone table stores information about different time zones, including offsets and identifiers. It helps companies manage scheduling, reminders, and timestamps accurately across multiple regions.",
         "columns": [
             {
@@ -4529,7 +4529,7 @@
             }
         ]
     },
-    "QuotationUsers": {
+    "quotationUsers": {
         "description": "The QuotationUsers table stores users associated with or assigned to specific quotations, tracking their involvement and notification status for each quotation within the company.",
         "columns": [
             {
@@ -4594,7 +4594,7 @@
             }
         ]
     },
-    "QuoteActivityAssignedUser": {
+    "quoteActivityAssignedUser": {
         "description": "The QuoteActivityAssignedUser table links users to specific activities within a quotation, identifying who is responsible for each task and managing task assignments for quotation-related activities.",
         "columns": [
             {
@@ -4635,7 +4635,7 @@
             }
         ]
     },
-    "InvoiceReminders": {
+    "invoiceReminders": {
         "description": "The InvoiceReminderUser table stores reminders related to invoices for users, including scheduling details, duration, notification preferences (such as email), and completion status. It helps manage and track invoice-related reminders for individuals or teams within a company.",
         "columns": [
             {
@@ -4760,7 +4760,7 @@
             }
         ]
     },
-    "InvoiceReminderUser": {
+    "invoiceReminderUser": {
         "description": "The InvoiceReminderUser table links users or teams to specific invoice reminders, indicating who should receive the notification and managing reminder assignments within the company.",
         "columns": [
             {
@@ -4801,7 +4801,7 @@
             }
         ]
     },
-    "RecurringInvoice": {
+    "recurringInvoice": {
         "description": "The RecurringInvoice table stores information about invoice reminder that are generated on a recurring, including start/end dates, frequency, and related jobs.",
         "columns": [
             {
@@ -4908,7 +4908,7 @@
             }
         ]
     },
-    "QuotationDetails": {
+    "quotationDetails": {
         "description": "The QuotationDetails table stores line-item details for each quotation, including services, quantities, pricing, and descriptions. Each quotation can have multiple QuotationDetails entries representing the individual services or items included in the quote.",
         "columns": [
             {
@@ -5045,7 +5045,7 @@
             }
         ]
     },
-    "Job": {
+    "job": {
         "description": "The Job table stores the basic job details like job title, the type of job (one-off or recurring), job status, and job costing and taxes. This helps to represent data based on a job.",
         "columns": [
             {
@@ -5208,7 +5208,7 @@
                 "Column Name": "TaxPosition",
                 "Data Type": "int",
                 "constraints": "",
-                "description": "Defines tax applicability/position for the job."
+                "description": "Defines tax calculation method: Position 1 = Apply discount first, then tax ((BaseTotal – Discount) + Tax); Position 2 = Apply tax first, then discount ((BaseTotal + Tax) – Discount)."
             },
             {
                 "Column Name": "TaxId",
@@ -5280,7 +5280,7 @@
                 "Column Name": "JobStatus",
                 "Data Type": "int",
                 "constraints": "",
-                "description": "Current job status (1=Created, 2=Scheduled, 3=Inprogress, 4=Onhold, 5=Waitingforparts, 6=Completed, 7=Cancelled)."
+                "description": "Current job status (1=Created, 2=Scheduled, 3=In Progress, 4=On Hold, 5=Waiting for Parts, 6=Completed, 7=Cancelled)."
             },
             {
                 "Column Name": "IsJobCreated",
@@ -5380,7 +5380,7 @@
             }
         ]
     },
-    "JobAttachment": {
+    "jobAttachment": {
         "description": "The JobAttachment table stores files or documents linked to jobs, including images, PDFs, or other relevant attachments. It tracks whether the attachment is added by a technician and categorizes attachments by type for proper organization and reference.",
         "columns": [
             {
@@ -5475,7 +5475,7 @@
             }
         ]
     },
-    "JobCheckListDetails": {
+    "jobCheckListDetails": {
         "description": "The JobCheckListDetails table stores checklist items associated with each job, capturing their status, order, and completion information. It links jobs to predefined checklist items from the CheckList and CheckListDetails tables to ensure tasks are tracked and completed according to company standards.",
         "columns": [
             {
@@ -5540,7 +5540,7 @@
             }
         ]
     },
-    "JobDetails": {
+    "jobDetails": {
         "description": "The JobDetails table stores detailed line-item information for each job, including associated services, quantities, pricing, and descriptions. Each job can have multiple JobDetails records representing individual services or items performed or billed within that job.",
         "columns": [
             {
@@ -5671,7 +5671,7 @@
             }
         ]
     },
-    "JobDetails_Users": {
+    "jobDetails_Users": {
         "description": "The JobDetails_Users table links technicians to specific job detail entries, tracking assignments and whether each technician has been paid.",
         "columns": [
             {
@@ -5712,7 +5712,7 @@
             }
         ]
     },
-    "JobRates": {
+    "jobRates": {
         "description": "The JobRates table stores billing and payroll rates for users assigned to specific jobs, including overtime, premium, and travel rates. While users have default rate settings in the CompanyUsers table, this table allows defining job-specific rate variations that override the defaults for more accurate billing and payroll calculations.",
         "columns": [
             {
@@ -5813,7 +5813,7 @@
             }
         ]
     },
-    "JobType": {
+    "jobType": {
         "description": "The JobType table stores custom job categories defined by each company. In addition to the system-defined static types — Recurring and One-Off — jobs can also be assigned a type from this table to represent other custom classifications for better organization and reporting.",
         "columns": [
             {
@@ -5884,7 +5884,7 @@
             }
         ]
     },
-    "Leave": {
+    "leave": {
         "description": "The Leave table stores employee leave requests, capturing details such as start and end dates, leave type (vacation, day off, medical, others), and current status (pending, approved, rejected, or cancelled). It also includes information about approvals, remarks, and internal notes, helping manage and track leave requests across the organization.",
         "columns": [
             {
@@ -6009,7 +6009,7 @@
             }
         ]
     },
-    "LeaveAttachment": {
+    "leaveAttachment": {
         "description": "The LeaveAttachment table stores documents or files linked to employee leave requests, such as medical certificates, approval letters, or supporting evidence. It helps maintain proper documentation for leave validation and recordkeeping within the company.",
         "columns": [
             {
@@ -6092,7 +6092,7 @@
             }
         ]
     },
-    "Quotation": {
+    "quotation": {
         "description": "The Quotation table stores information about quotations or estimates sent to clients. It includes details such as quoted amounts, discounts, taxes, and deposit information. This table is used to manage and track the lifecycle of client quotes, from creation to approval or conversion into jobs or invoices.",
         "columns": [
             {
@@ -6141,7 +6141,7 @@
                 "Column Name": "QuoteStatus",
                 "Data Type": "int",
                 "constraints": "",
-                "description": "Current status of the quotation (1 = Created, 2 = Sent, 3 = Approved, 4 = Rejected, 5 = Expired)."
+                "description": "Current status of the quotation (1 = All, 2 = Created, 3 = Sent, 4 = Approved, 5 = Rejected, 6 = Expired)."
             },
             {
                 "Column Name": "QuoteDate",
@@ -6225,7 +6225,7 @@
                 "Column Name": "TaxPosition",
                 "Data Type": "int",
                 "constraints": "",
-                "description": "Defines tax calculation method (e.g., BaseTotal - Discount + Tax vs BaseTotal + Tax - Discount)."
+                "description": "Defines tax calculation method: Position 1 = Apply discount first, then tax ((BaseTotal – Discount) + Tax); Position 2 = Apply tax first, then discount ((BaseTotal + Tax) – Discount)."
             },
             {
                 "Column Name": "TaxID",
@@ -6307,7 +6307,7 @@
             }
         ]
     },
-    "PaymentAttachment": {
+    "paymentAttachment": {
         "description": "The PaymentAttachment table stores files or documents associated with specific payment records. It helps maintain supporting evidence such as receipts or transaction proofs for payments within each company.",
         "columns": [
             {
@@ -6384,7 +6384,7 @@
             }
         ]
     },
-    "Payroll": {
+    "payroll": {
         "description": "The Payroll table stores information about already processed (paid) payroll data. Each record represents payroll details for a specific user during a payroll run. Stores payroll Run Date, User ID, Total Payable Amount, Paid Status. This table holds data at the time payroll is generated. Records are updated/marked as paid once the payroll is processed and completed.",
         "columns": [
             {
@@ -6437,7 +6437,7 @@
             }
         ]
     },
-    "Payroll_Expense": {
+    "payroll_Expense": {
         "description": "The Payroll_Expense table stores information about paid expenses associated with payroll runs. Each record is linked to a payroll entry via a Payroll ID reference. This table only includes expenses that have already been paid. Each record is associated with a payroll record using the PayrollID.",
         "columns": [
             {
@@ -6508,7 +6508,7 @@
             }
         ]
     },
-    "Payroll_LoggedHours": {
+    "payroll_LoggedHours": {
         "description": "The Payroll_LoggedHours table stores information about paid logged hours associated with payroll runs. Each record is linked to a payroll entry via a Payroll ID reference. This table only includes timesheet data that have already been paid. Each record is associated with a payroll record using the PayrollID.",
         "columns": [
             {
@@ -6693,7 +6693,7 @@
             }
         ]
     },
-    "Payroll_OtherExpense": {
+    "payroll_OtherExpense": {
         "description": "The Payroll_OtherExpense table stores information about paid allowances associated with payroll runs. Each record is linked to a payroll entry via a Payroll ID reference. This table only includes Allowances that have already been paid. Each record is associated with a payroll record using the PayrollID.",
         "columns": [
             {
@@ -6770,7 +6770,7 @@
             }
         ]
     },
-    "PublicHoliday": {
+    "publicHoliday": {
         "description": "The PublicHoliday table stores information about company-specific holidays. It is used to track official leave dates and manage scheduling, attendance, and payroll calculations across different companies.",
         "columns": [
             {
@@ -6799,7 +6799,7 @@
             }
         ]
     },
-    "QuotationAttachment": {
+    "quotationAttachment": {
         "description": "The QuotationAttachment table stores files related to quotations, such as PDFs, images, or supporting documents. It helps companies organize and reference all documents associated with a quotation.",
         "columns": [
             {
@@ -6882,7 +6882,7 @@
             }
         ]
     },
-    "QuotationCRM": {
+    "quotationCRM": {
         "description": "The QuotationCRM table stores CRM activities related to quotations, including scheduled tasks, follow-ups, and assigned users. It helps companies track interactions and manage follow-up actions for each quotation. Within QuotationCRM, clients can: Add Notes – with a history view to track previous notes. Set Reminders – to schedule jobs, including recurring reminders. Log Activities – to schedule calls, meetings, tasks, deadlines, emails, or lunches, with associated dates and times.",
         "columns": [
             {
@@ -7007,7 +7007,7 @@
             }
         ]
     },
-    "Payment": {
+    "payment": {
         "description": "The Payment table stores all payment transactions collected against invoices. It supports partial payments and multiple payment methods such as cash, cheque, credit card, bank transfer, money order, Square, and others. This table is used to track and calculate received payments, synchronize payment records across systems, and manage refund or error-handling details related to invoices.",
         "columns": [
             {
@@ -7168,7 +7168,7 @@
             }
         ]
     },
-    "Expenses": {
+    "expenses": {
         "description": "The Expenses table stores detailed information about all job-related and direct business expenses. It is primarily used for financial analysis, including calculating profit margins, tracking billable and non-billable costs, and managing reimbursements or payments. Each record represents a single expense entry linked to clients, companies, accounts, users, or specific jobs.",
         "columns": [
             {
@@ -7323,7 +7323,7 @@
             }
         ]
     },
-    "RecurringJob": {
+    "recurringJob": {
         "description": "In Recurring Job, clients can schedule jobs with a specific date and time. They can set the job to repeat on particular days, define the duration, and choose the duration type, making it easy to automate jobs according to their needs.",
         "columns": [
             {
@@ -7517,6 +7517,1193 @@
                 "Data Type": "int",
                 "constraints": "",
                 "description": "User who deleted this leave."
+            }
+        ]
+    },
+    "Allowence": {
+        "description": "The Allowence table stores the monetary benefits provided to the employee like Food allowences ",
+        "columns": [
+            {
+                "Column Name": "AllowenceId",
+                "Data Type": "int",
+                "constraints": "PK",
+                "description": "Primary key (unique identifier for each record)."
+            },
+            {
+                "Column Name": "Amount",
+                "Data Type": "decimal(18,9)",
+                "constraints": "",
+                "description": "Monetary value of the allowance"
+            },
+            {
+                "Column Name": "Frequency",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Integer code indicating how often an allowance is applied (1=PerJob, 2=Daily, 3=Weekly, 4=BiWeekly, 5=Monthly, 6=None)."
+            },
+            {
+                "Column Name": "CompanyId",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "Identifier of the company to which the allowance belongs"
+            },
+            {
+                "Column Name": "AllowenceName",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "Name or title of the allowance."
+            },
+            {
+                "Column Name": "CreatedBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "User who originally created the record"
+            },
+            {
+                "Column Name": "CreatedDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Date and time when the record was created"
+            },
+            {
+                "Column Name": "ModifyBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "User who last modified the record"
+            },
+            {
+                "Column Name": "ModifyDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Date and time of the most recent modification"
+            }
+        ]
+    },
+    "UserAllowence": {
+        "description": "The UserAllowence table store assigns allowances to specified users",
+        "columns": [
+            {
+                "Column Name": "UserAllowenceId",
+                "Data Type": "int",
+                "constraints": "PK",
+                "description": "Primary key (unique identifier for each record)."
+            },
+            {
+                "Column Name": "AllowenceId",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "References Allowance(AllowenceId). Links the record to a specific allowance type."
+            },
+            {
+                "Column Name": "UserId",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "Identifier of the user who receives the allowance. References a Users table."
+            },
+            {
+                "Column Name": "Frequency",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Integer code indicating how often an allowance is applied (1=PerJob, 2=Daily, 3=Weekly, 4=BiWeekly, 5=Monthly, 6=None)."
+            },
+            {
+                "Column Name": "Amount",
+                "Data Type": "decimal(18,9)",
+                "constraints": "",
+                "description": "Monetary amount of the allowance for the specified frequency."
+            },
+            {
+                "Column Name": "nan",
+                "Data Type": "nan",
+                "constraints": "",
+                "description": "nan"
+            }
+        ]
+    },
+    "CustomField": {
+        "description": "Stores configurable custom fields for different modules within a company, including their type, metadata (JSON), grouping, and lifecycle status (created, modified, archived, deleted)",
+        "columns": [
+            {
+                "Column Name": "CustomFieldId",
+                "Data Type": "int",
+                "constraints": "PK",
+                "description": "Primary key (unique identifier for each record)."
+            },
+            {
+                "Column Name": "ModuleType",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Integer code indicating which module the field belongs to (1=Request, 2=Quote, 3=Job, 4=Invoice)."
+            },
+            {
+                "Column Name": "CompanyId",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "This column stores company id. which helps to retrive company details"
+            },
+            {
+                "Column Name": "FieldName",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "Name or label of the custom field."
+            },
+            {
+                "Column Name": "FieldType",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Integer code defining the UI input type for the field (1=TextBox, 2=TextArea, 3=Dropdown, 4=Checkbox, 5=RadioButton, 6=DatePicker"
+            },
+            {
+                "Column Name": "FiledJson",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "JSON configuration or metadata for the field."
+            },
+            {
+                "Column Name": "IsDeleted",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Flag indicating if the field is marked as deleted."
+            },
+            {
+                "Column Name": "IsArchive",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Flag indicating if the field is archived."
+            },
+            {
+                "Column Name": "CreatedDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Date and time when the field was created."
+            },
+            {
+                "Column Name": "CreatedBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "User who created the field."
+            },
+            {
+                "Column Name": "ModifiedDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Date and time of the last modification."
+            },
+            {
+                "Column Name": "ModifiedBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "User who last modified the field."
+            },
+            {
+                "Column Name": "DeletedDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Date and time when the field was deleted."
+            },
+            {
+                "Column Name": "DeletedBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "User who deleted the field."
+            },
+            {
+                "Column Name": "GroupId",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Identifier for the group this field belongs to (if grouped)."
+            }
+        ]
+    },
+    "CustomFieldModule": {
+        "description": "Stores the assigned custom fields for specific modules and records, including field definitions, values (JSON), company context, and lifecycle tracking (create/modify/delete).",
+        "columns": [
+            {
+                "Column Name": "CustomFieldModuleId",
+                "Data Type": "int",
+                "constraints": "PK",
+                "description": "Unique identifier for the custom field module."
+            },
+            {
+                "Column Name": "CustomFieldId",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "References CustomField(CustomFieldId) and identifies which custom field this entry belongs to."
+            },
+            {
+                "Column Name": "ModuleType",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Integer code indicating which module the field belongs to (1=Request, 2=Quote, 3=Job, 4=Invoice)."
+            },
+            {
+                "Column Name": "ModuleId",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "References ModuleType(Id) and identifies which module type this entry belongs to."
+            },
+            {
+                "Column Name": "CompanyId",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Identifier of the company owning this field."
+            },
+            {
+                "Column Name": "FieldName",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "Name or label of the field."
+            },
+            {
+                "Column Name": "FieldType",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Integer code defining the UI input type for the field (1=TextBox, 2=TextArea, 3=Dropdown, 4=Checkbox, 5=RadioButton, 6=DatePicker"
+            },
+            {
+                "Column Name": "FiledJson",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "JSON configuration or metadata for the field."
+            },
+            {
+                "Column Name": "FIeldJsonValue",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "JSON value assigned to this field for the module."
+            },
+            {
+                "Column Name": "IsDeleted",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Flag indicating if the field is marked as deleted."
+            },
+            {
+                "Column Name": "CreatedDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Date and time when the field was created."
+            },
+            {
+                "Column Name": "CreatedBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "User who created the field."
+            },
+            {
+                "Column Name": "ModifiedDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Date and time of the last modification."
+            },
+            {
+                "Column Name": "ModifiedBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "User who last modified the field."
+            },
+            {
+                "Column Name": "DeletedDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Date and time when the field was deleted."
+            },
+            {
+                "Column Name": "DeletedBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "User who deleted the field."
+            }
+        ]
+    },
+    "ModuleType": {
+        "description": "Stores the list of module types with their unique identifier and name.",
+        "columns": [
+            {
+                "Column Name": "Id",
+                "Data Type": "int",
+                "constraints": "PK",
+                "description": "Primary key. Unique identifier for the record."
+            },
+            {
+                "Column Name": "Name",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "Name or title associated with the record."
+            }
+        ]
+    },
+    "General_Config": {
+        "description": "tores company-level general configuration settings, including options for contact-person login, auto/ manual schedule titles, and job title preferences.",
+        "columns": [
+            {
+                "Column Name": "GeneralConfigId",
+                "Data Type": "int",
+                "constraints": "PK",
+                "description": "Unique identifier for the record."
+            },
+            {
+                "Column Name": "CompanyId",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "This column stores company id. which helps to retrive company details"
+            },
+            {
+                "Column Name": "IsAllowContactPersonLogin",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Flag indicating if contact person login is allowed."
+            },
+            {
+                "Column Name": "IsAutoScheduleTitle",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Flag indicating if schedule titles are auto-generated."
+            },
+            {
+                "Column Name": "ManualScheduleTitle",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "Title used for manual schedules."
+            },
+            {
+                "Column Name": "isOtherJobTitle",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Flag indicating if other job titles are allowed."
+            },
+            {
+                "Column Name": "JobTitle",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "Job title used in the system."
+            }
+        ]
+    },
+    "RequestDetails": {
+        "description": "Stores detailed information for a service request, including service description, assessment dates/times, scheduling preferences, and full lifecycle metadata (create/modify/delete) at the company level.",
+        "columns": [
+            {
+                "Column Name": "Id",
+                "Data Type": "int",
+                "constraints": "PK",
+                "description": "Primary key (unique identifier for each request detail record)."
+            },
+            {
+                "Column Name": "RequestId",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "Foreign key referencing Request.Id. links this detail record to a specific request."
+            },
+            {
+                "Column Name": "ServiceDetails",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "Description or details of the service requested."
+            },
+            {
+                "Column Name": "AssessmentDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Date scheduled for the initial assessment or visit."
+            },
+            {
+                "Column Name": "AssessmentDate2",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Optional second date for the initial assessment or visit, if applicable."
+            },
+            {
+                "Column Name": "AssessmentTime",
+                "Data Type": "varchar",
+                "constraints": "",
+                "description": "Preferred time for the assessment; stored as a string (e.g., \"anytime\", \"morning\", \"afternoon\", \"evening\")."
+            },
+            {
+                "Column Name": "OnSiteAssessment",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Boolean indicating whether the assessment requires on-site presence. if true, scheduling details must be added."
+            },
+            {
+                "Column Name": "IsScheduleLater",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Boolean indicating if the assessment scheduling is deferred to a later time."
+            },
+            {
+                "Column Name": "IsAnyTime",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Boolean indicating if the client is flexible with the assessment time (available at any time of the day)."
+            },
+            {
+                "Column Name": "CreatedDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Date when the request detail added"
+            },
+            {
+                "Column Name": "CreatedBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "User who created request details."
+            },
+            {
+                "Column Name": "ModifiedDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Date when the request detail last modified."
+            },
+            {
+                "Column Name": "ModifiedBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "User who last modifed request details."
+            },
+            {
+                "Column Name": "IsDeleted",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Soft delete flag (0 = active, 1 = deleted)."
+            },
+            {
+                "Column Name": "DeletedDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Date when request detaild deleted."
+            },
+            {
+                "Column Name": "DeletedBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "User who delete the record"
+            },
+            {
+                "Column Name": "CompanyID",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "This column stores company id. which helps to retrive company details or company wise request details."
+            }
+        ]
+    },
+    "RecurringInvoice": {
+        "description": "Stores recurring invoice settings for a job, including invoice type, reminder type, schedule dates, total invoices generated, and full lifecycle tracking (create/modify/delete) per company.",
+        "columns": [
+            {
+                "Column Name": "Id",
+                "Data Type": "int",
+                "constraints": "PK",
+                "description": "Primary key (unique identifier for the recurring invoice setup)."
+            },
+            {
+                "Column Name": "JobId",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "References Job(Id). Links the recurring invoice to a specific job."
+            },
+            {
+                "Column Name": "CompanyId",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "References Company(CompanyId). Identifies the company that owns the recurring invoice setup."
+            },
+            {
+                "Column Name": "WantInvoiceType",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Type of invoice recurrence (1 = Reminder Monthly on last day, 2 = Reminder After every visit, 3 = Manual As needed, 4 = Reminder Upon job completion)."
+            },
+            {
+                "Column Name": "InvoiceReminderType",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Specifies the reminder type (e.g., Email, In-App, Both) for notifying before or after invoice generation."
+            },
+            {
+                "Column Name": "StartDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "The start date from which the recurring invoice cycle begins."
+            },
+            {
+                "Column Name": "EndDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "The end date until which invoices should be generated."
+            },
+            {
+                "Column Name": "FirstInvoiceDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "The date when the first invoice is generated under this recurring setup."
+            },
+            {
+                "Column Name": "LastInvoiceDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "The date when the most recent invoice was generated."
+            },
+            {
+                "Column Name": "TotalInvoice",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "The total number of invoices generated so far under this recurring schedule."
+            },
+            {
+                "Column Name": "CreatedDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Date when the invoice record was created."
+            },
+            {
+                "Column Name": "CreatedBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "User who created the invoice."
+            },
+            {
+                "Column Name": "ModifiedDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Date when the invoice was last modified."
+            },
+            {
+                "Column Name": "ModifiedBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "User who modified the invoice."
+            },
+            {
+                "Column Name": "IsDeleted",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Boolean flag. Marks soft deletion of the invoice."
+            },
+            {
+                "Column Name": "DeletedDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Date when the invoice was deleted."
+            },
+            {
+                "Column Name": "DeletedBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "User who deleted the invoice."
+            }
+        ]
+    },
+    "JobConfig": {
+        "description": "Stores company-specific job configuration settings, including job number prefix/suffix, tracking rules, time limits, checklist options, clock-in modes, completion workflow settings, confirmation text, and signature requirements.",
+        "columns": [
+            {
+                "Column Name": "Id",
+                "Data Type": "int",
+                "constraints": "PK",
+                "description": "Primary key. Unique identifier for the configuration record."
+            },
+            {
+                "Column Name": "CompanyId",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "Identifier of the company associated with the configuration."
+            },
+            {
+                "Column Name": "Prefix",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "Prefix value used for numbering or naming."
+            },
+            {
+                "Column Name": "Suffix",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "Suffix value used for numbering or naming."
+            },
+            {
+                "Column Name": "isallowtrack",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Indicates whether time tracking is allowed."
+            },
+            {
+                "Column Name": "MaxTime",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Maximum allowed time limit."
+            },
+            {
+                "Column Name": "MinTime",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Minimum allowed time limit."
+            },
+            {
+                "Column Name": "isallowChecklist",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Indicates whether checklist features are allowed."
+            },
+            {
+                "Column Name": "ClockInMode",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Mode used for clock-in functionality."
+            },
+            {
+                "Column Name": "TeamBasedClockIn",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Indicates whether team-based clock-in is enabled."
+            },
+            {
+                "Column Name": "IsAssignAllowLineIteam",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Indicates whether line items can be assigned."
+            },
+            {
+                "Column Name": "IsTwoStageCompletionEnabled",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Indicates whether two-stage job completion is enabled."
+            },
+            {
+                "Column Name": "TechnicianCompletionLabel",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "Label displayed for technician completion."
+            },
+            {
+                "Column Name": "IsAdminFinalizationRequired",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Indicates whether admin finalization is required."
+            },
+            {
+                "Column Name": "ConfirmationText",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "Confirmation message shown during the process."
+            },
+            {
+                "Column Name": "isAllowSignature",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Indicates whether signature capture is allowed."
+            }
+        ]
+    },
+    "JobSchedule": {
+        "description": "The JobSchedule table stores scheduling information for jobs and requests, where a schedule can belong either to a job (when JobId is present) or to a request (when RequestId is present). A job can have one or multiple schedule records. Each schedule represents either a recurring job (IsRecurring = 1, meaning schedule) or a one-off visit (IsRecurring = 0, meaning visit).",
+        "columns": [
+            {
+                "Column Name": "JobScheduleId",
+                "Data Type": "int",
+                "constraints": "PK",
+                "description": "Primary key. Unique identifier for the job schedule record."
+            },
+            {
+                "Column Name": "CompanyId",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "This column stores company id. which helps to retrive company details or company wise jobschedule list."
+            },
+            {
+                "Column Name": "IsRecurring",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Indicates whether the schedule is recurring."
+            },
+            {
+                "Column Name": "JobId",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "Identifier of the job associated with the schedule."
+            },
+            {
+                "Column Name": "RequestId",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "Identifier of the request linked to the schedule."
+            },
+            {
+                "Column Name": "Instruction",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "Instructions or notes related to the scheduled"
+            },
+            {
+                "Column Name": "StartDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Start date of the scheduled"
+            },
+            {
+                "Column Name": "EndDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "End date of the scheduled (if applicable)."
+            },
+            {
+                "Column Name": "StartTime",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Start time of the scheduled."
+            },
+            {
+                "Column Name": "EndTime",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "End time of the scheduled."
+            },
+            {
+                "Column Name": "IsInvoiced",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Indicates whether this scheduled task has been invoiced."
+            },
+            {
+                "Column Name": "IsScheduleLater",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Indicates whether the schedule will be scheduled at a later time."
+            },
+            {
+                "Column Name": "IsAnyTime",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Indicates whether the schedule can be performed at any time."
+            },
+            {
+                "Column Name": "IsTeam",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Indicates whether the schedule is assigned to a team."
+            },
+            {
+                "Column Name": "IsCancelled",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Indicates whether the schedule has been cancelled."
+            },
+            {
+                "Column Name": "IsCompleted",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Indicates whether the scheduled is completed."
+            },
+            {
+                "Column Name": "CompletedDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Timestamp when the schedule was marked as completed."
+            },
+            {
+                "Column Name": "CompletedBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Identifier of the user who completed the schedule."
+            },
+            {
+                "Column Name": "IsVerified",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Indicates whether the schedule completion has been verified."
+            },
+            {
+                "Column Name": "VerifiedBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Identifier of the user who verified the schedule."
+            },
+            {
+                "Column Name": "VerifiedDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Timestamp when the schedule was verified."
+            },
+            {
+                "Column Name": "IsManualChangeTime",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Boolean indicating whether the completed date was manually adjusted. If true, the date should be displayed as it is. if false, the date is in UTC and should be converted to the company’s specific timezone for display."
+            },
+            {
+                "Column Name": "SupervisorId",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "Identifier of the supervisor for the schedule."
+            },
+            {
+                "Column Name": "MailTo",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "Email address(es) to send schedule-related messages."
+            },
+            {
+                "Column Name": "TeamReminder",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "Reminder settings for team members."
+            },
+            {
+                "Column Name": "SignatureFilePath",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "File path of the job signature file."
+            },
+            {
+                "Column Name": "SignatureFileName",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "File name of the job signature file."
+            },
+            {
+                "Column Name": "CreatedDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Timestamp when the record was created."
+            },
+            {
+                "Column Name": "CreatedBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Identifier of the user who created the record."
+            },
+            {
+                "Column Name": "ModifiedDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Timestamp when the record was last modified."
+            },
+            {
+                "Column Name": "ModifiedBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Identifier of the user who last modified the record."
+            },
+            {
+                "Column Name": "IsDeleted",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Soft delete flag indicating whether the record is deleted."
+            },
+            {
+                "Column Name": "DeletedDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Timestamp when the record was deleted."
+            },
+            {
+                "Column Name": "DeletedBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Identifier of the user who deleted the record."
+            }
+        ]
+    },
+    "JobScheduleUsers": {
+        "description": "Stores information about the technicians/users assigned to a job schedule, where each record links a user or team to a specific schedule. The entry belongs to a job when JobId is present, or to a request when RequestId is present. SourceType indicates whether the schedule is for a recurring job (“Schedule”) or a one-off visit (“Visit”). Includes assignment details along with soft-delete and notification flags.",
+        "columns": [
+            {
+                "Column Name": "JobScheduleUserId",
+                "Data Type": "int",
+                "constraints": "PK",
+                "description": "Primary key. Unique identifier for the job schedule user record."
+            },
+            {
+                "Column Name": "JobScheduleId",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "References JobSchedule(JobScheduleId) and links the record to a specific jobSchedule."
+            },
+            {
+                "Column Name": "UserId",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "Identifier of the user who receives the allowance. References a Users table."
+            },
+            {
+                "Column Name": "TeamId",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "References Team(Id) and links the record to a specific team."
+            },
+            {
+                "Column Name": "CompanyId",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "This column stores company id. which helps to retrive company details"
+            },
+            {
+                "Column Name": "JobId",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "References Job(Id) and links the record to a specific job."
+            },
+            {
+                "Column Name": "RequestId",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "References Request(Id) and links the record to a specific request."
+            },
+            {
+                "Column Name": "IsDeleted",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Soft delete flag indicating whether the record is deleted."
+            },
+            {
+                "Column Name": "IsNotify",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Indicates whether notifications should be sent to the user."
+            },
+            {
+                "Column Name": "SourceType",
+                "Data Type": "varchar",
+                "constraints": "",
+                "description": "Stores string values indicating the origin of a record, typically Schedule or Visit"
+            }
+        ]
+    },
+    "PayrollConfig": {
+        "description": "Stores company-level payroll configuration settings, including overtime rules, weekend overtime, payroll period, job status handling, grace periods, rounding options, break rules, allowances, and payroll run preferences for single and recurring jobs.",
+        "columns": [
+            {
+                "Column Name": "Id",
+                "Data Type": "int",
+                "constraints": "PK",
+                "description": "Primary key. Unique identifier for the payroll settings record."
+            },
+            {
+                "Column Name": "CompanyId",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "This column stores company id. which helps to retrive company details"
+            },
+            {
+                "Column Name": "IsPayrollOverTime",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Indicates whether overtime is enabled in payroll."
+            },
+            {
+                "Column Name": "PayrollOverTimeType",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Defines the type of overtime calculation used."
+            },
+            {
+                "Column Name": "IsSaturdayOverTime",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Indicates whether Saturday overtime is enabled."
+            },
+            {
+                "Column Name": "IsSundayOverTime",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Indicates whether Sunday overtime is enabled."
+            },
+            {
+                "Column Name": "PayrollPeriod",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "PayrollPeriod – Integer code specifying the payroll cycle (1=Weekly, 2=BiWeekly, 3=Monthly, 4=Custom)."
+            },
+            {
+                "Column Name": "JobStatus",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Current job status (1=Created, 2=Scheduled, 3=Inprogress, 4=Onhold, 5=Waitingforparts, 6=Completed, 7=Cancelled)."
+            },
+            {
+                "Column Name": "GracePeriod",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Grace period allowed before marking late or early."
+            },
+            {
+                "Column Name": "PayrollCompletedDate",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Date when payroll processing was completed."
+            },
+            {
+                "Column Name": "IsRounding",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Indicates whether time rounding is enabled."
+            },
+            {
+                "Column Name": "RoundClockIn",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Rounding rule applied to clock-in time."
+            },
+            {
+                "Column Name": "RoundClockInInterval",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Interval used for rounding clock-in time."
+            },
+            {
+                "Column Name": "RoundClockOut",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Rounding rule applied to clock-out time."
+            },
+            {
+                "Column Name": "RoundClockOutInterval",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Interval used for rounding clock-out time."
+            },
+            {
+                "Column Name": "IsGracePeriod",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Indicates whether grace period rules are enabled."
+            },
+            {
+                "Column Name": "ClockInIntervalGraceMin",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Grace minutes allowed for clock-in interval."
+            },
+            {
+                "Column Name": "ClockOutIntervalGraceMin",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Grace minutes allowed for clock-out interval."
+            },
+            {
+                "Column Name": "OneofJobPayrollRunBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Specifies which user or role runs a one-time payroll job."
+            },
+            {
+                "Column Name": "ReccuringJobPayrollRunBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Specifies which user or role runs a recurring payroll job."
+            },
+            {
+                "Column Name": "isAllowence",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Indicates whether allowance is included in payroll."
+            },
+            {
+                "Column Name": "IsBreak",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Indicates whether break time rules are enabled."
+            },
+            {
+                "Column Name": "MinimunWorkHoursForBreak",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Minimum number of work hours required for a break to apply."
+            }
+        ]
+    },
+    "Payroll_OtherEarnings": {
+        "description": "Stores additional earnings linked to a payroll entry, including earning name, date, amount, type, payment status, user/company context, and full lifecycle tracking (create/modify/delete).",
+        "columns": [
+            {
+                "Column Name": "OtherEarningsId",
+                "Data Type": "int",
+                "constraints": "PK",
+                "description": "Primary key. Unique identifier for the other earnings record."
+            },
+            {
+                "Column Name": "PayrollId",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "References Payroll(PayrollId) and links the record to a specific payroll run."
+            },
+            {
+                "Column Name": "EarningsName",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "Name or title of the earning."
+            },
+            {
+                "Column Name": "EarningDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Date on which the earning is recorded."
+            },
+            {
+                "Column Name": "Amount",
+                "Data Type": "decimal",
+                "constraints": "",
+                "description": "Amount of the earning."
+            },
+            {
+                "Column Name": "Description",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "Additional description or notes about the earning."
+            },
+            {
+                "Column Name": "Isdelete",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Soft delete flag indicating whether the record is deleted."
+            },
+            {
+                "Column Name": "CreatedBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Identifier of the user who created the record."
+            },
+            {
+                "Column Name": "CreatedDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Timestamp when the record was created."
+            },
+            {
+                "Column Name": "ModifyBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Identifier of the user who modified the record."
+            },
+            {
+                "Column Name": "modifiedDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Timestamp when the record was last modified."
+            },
+            {
+                "Column Name": "UserId",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "Identifier of the user associated with the earning."
+            },
+            {
+                "Column Name": "CompanyId",
+                "Data Type": "int",
+                "constraints": "FK",
+                "description": "References Company(CompanyId). Identifies the company to which the Payroll_OtherEarnings belongs."
+            },
+            {
+                "Column Name": "IsPaid",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Indicates whether the earning has been paid."
+            },
+            {
+                "Column Name": "EarningType",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Type/category of the earning."
             }
         ]
     }

@@ -216,6 +216,13 @@ def get_chat_logs():
             r["questionId"] = str(r["_id"])
             del r["_id"]
 
+            # Convert datetime fields to ISO format
+            if "createdAt" in r and isinstance(r["createdAt"], datetime):
+                r["createdAt"] = r["createdAt"].isoformat() + "Z"
+
+            if "respondedAt" in r and isinstance(r["respondedAt"], datetime):
+                r["respondedAt"] = r["respondedAt"].isoformat() + "Z"
+
 
         # ---- Response ----
         return jsonify({

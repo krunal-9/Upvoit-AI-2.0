@@ -189,38 +189,15 @@ except Exception as e:
 
 
 # LLM Configuration
-class ModelConfig:
-    def __init__(self):
-        self.openai_api_key = os.getenv("OPENAI_API_KEY")
-        self.fast_model_name = os.getenv("FAST_MODEL_NAME", "gpt-5-nano")
-        self.smart_model_name = os.getenv("SMART_MODEL_NAME", "gpt-5.1")
-        self.temperature = float(os.getenv("MODEL_TEMPERATURE", "0"))
-
-        if not self.openai_api_key:
-            raise ValueError(
-                "OpenAI API key is not set. Please set the OPENAI_API_KEY environment variable."
-            )
-
-    def get_fast_llm(self):
-        return ChatOpenAI(
-            model=self.fast_model_name,
-            temperature=self.temperature,
-            api_key=self.openai_api_key,
-        )
-
-    def get_smart_llm(self):
-        return ChatOpenAI(
-            model=self.smart_model_name,
-            temperature=self.temperature,
-            api_key=self.openai_api_key,
-        )
-
+from llm_config import get_fast_llm, get_smart_llm
 
 try:
-    config = ModelConfig()
-    # Initialize both models
-    fast_llm = config.get_fast_llm()
-    smart_llm = config.get_smart_llm()
+    # Initialize both models using the centralized config
+    fast_llm = get_fast_llm()
+    smart_llm = get_smart_llm()
+except Exception as e:
+    print(f"Error initializing language models: {str(e)}")
+    raise
     
     # Default llm variable for backward compatibility or generic use if needed, 
     # but we will replace specific usages below.
@@ -638,9 +615,9 @@ Follow these steps to generate the best possible query:
    - **Readability:**
      - Prefer descriptive text columns over numeric codes.
      - Limit output to the most relevant 6-8 columns.
-   - **ENUM/LOOKUP COLUMNS (CRITICAL):** Check the schema description for any column that defines a mapping (e.g., "1=Created, 2=Scheduled").
-     - **FILTERING:** Use the **INTEGER** value (e.g., `JobStatus IN (2, 3)`).
-     - **SELECTING:** Select the raw column (e.g., `JobStatus`). The system will automatically map it to the human-readable name.
+   - **ENUM/LOOKUP COLUMNS (CRITICAL):** Check the schema description for any column that defines a mapping (for example, "1=Created, 2=Scheduled").
+     - **FILTERING:** Use the **INTEGER** value (for example, `JobStatus IN (2, 3)`).
+     - **SELECTING:** Select the raw column (for example, `JobStatus`). The system will automatically map it to the human-readable name.
 
 5. VALIDATE:
    - Ensure all referenced tables and columns exist in the schema
@@ -673,13 +650,10 @@ IMPORTANT DATE HANDLING & VARIABLE RULES (STRICT):
 1. For date/time filters, use proper date functions with explicit CONVERT(DATE, ...)
 2. For date ranges, use: 
            WHERE CONVERT(DATE, date_column) BETWEEN CONVERT(DATE, GETDATE()) AND DATEADD(day, 7, CONVERT(DATE, GETDATE()))
-3. **DEFAULT FILTERING:** Unless the user explicitly asks for "all" or "history", ALWAYS filter logically for:
-   - `Status` as 'Scheduled', 'Active', 'In Progress' (or equivalent)
-   - Future dates (if asking for "upcoming")
-   The user does not care about this query or how this works; for them this is just a chatbot and they need a natural response which will be generated from your query and its results. You are one agent in a framework of agents.
-3. Handle NULL dates properly.
-4. Current UTC Time is: {current_time}. Use it to calculate actual dates based on the user's request (e.g. "this week", "next week", "last month", "last quarter") and put concrete values into DECLARE.
-5. When using date functions, ensure the format is compatible with the MS SQL Server
+3. The user does not care about this query or how this works; for them this is just a chatbot and they need a natural response which will be generated from your query and its results. You are one agent in a framework of agents.
+4. Handle NULL dates properly.
+5. Current UTC Time is: {current_time}. Use it to calculate actual dates based on the user's request (e.g. "this week", "next week", "last month", "last quarter") and put concrete values into DECLARE.
+6. When using date functions, ensure the format is compatible with the MS SQL Server
 
 COMMON PITFALLS TO AVOID:
 - Don't compare string IDs with integer IDs
@@ -689,6 +663,19 @@ COMMON PITFALLS TO AVOID:
 
 DATABASE SCHEMA:
 {schema}
+
+IMPORTANT BUSINESS LOGIC:
+- Total expense amounts are derived from the 'Total' column in the 'Expenses' table.
+- For job-specific expenses, join with the 'Job' table; otherwise, no join is required for general expense totals.
+- Payment information is found in the 'PaidAmount' column, which represents the total amount paid.
+- Revenue is calculated using the 'NetTotal' column from the 'Invoice' table, with no additional joins needed.
+- Within the 'Job' table:
+  - 'ExpenseTotal' stores the total expense amount for that specific job.
+  - 'TotalPrice' stores the total price for that specific job.
+- For job scheduling:
+  - 'JobSchedule' table stores all job schedules (both one-off and recurring).
+  - 'JobScheduleUsers' table links users/teams to specific job schedules.
+  - When querying schedules, join JobSchedule with Job on JobId, and join JobScheduleUsers for assigned technicians/teams.
 
 PREVIOUS ERRORS:
 (You need to think critically to correct the SQL query for once and for all if there is any error.)
@@ -765,7 +752,8 @@ def table_selector(state: AgentState) -> AgentState:
     INSTRUCTIONS:
     1. Select ONLY tables that are absolutely necessary to answer the question.
     2. If the user asks about "jobs", include 'Job' and 'Clients' if customer details are needed.
-    3. Return a JSON object with a "tables" key containing a list of table names.
+    3. If the user asks about "schedules" or "job schedules", include 'JobSchedule' and 'JobScheduleUsers' for assigned users/teams.
+    4. Return a JSON object with a "tables" key containing a list of table names.
        Example: {{"tables": ["Job", "Clients"]}}
     """,
                 )
@@ -1905,9 +1893,9 @@ def run_conversational_query(
             summary = f"Query executed with {len(final_state['execution_result'])} results, but there was an error formatting them."
             final_state["summary_text"] = summary
     elif final_state["error"]:
-        summary = f"Query failed after {final_state['iteration_count']} iterations (max {max_iterations}). Final error: {final_state['error']}\nFinal SQL attempted: {final_state['generated_query']}"
+        summary = f"Something went wrong. Please try again."
     else:
-        summary = f"No results found after {final_state['iteration_count']} iterations (may have been revised).\nSQL: {final_state['generated_query']}"
+        summary = f"No results found."
 
     log_agent_step(
         "System",

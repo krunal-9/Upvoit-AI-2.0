@@ -1,6 +1,7 @@
 This database supports the Upvoit Field Service Management platform. It organizes information around Companies, their Clients, the Jobs performed for those clients, and the Users (technicians, admins) who perform the work.
 
 Key processes tracked include:
+- Scheduling: Handled by `JobSchedule` table, which store information about one-off and recurring job schedules, and `JobScheduleUsers` table, which stores information about users associated with job schedules. These tables are linked to `Job` and `Company` tables.
 - Work Logging: Technician hours are tracked in `Timesheet`.
 - Billing: Managed through `Quotation`, `Invoice`, and `Payment` tables.
 - Payroll: Processed using `Payroll` and related tables (`Payroll_Expense`, `Payroll_LoggedHours`, `Payroll_OtherExpense`) based on `Timesheet` data.
@@ -12,18 +13,28 @@ CRITICAL TABLE RELATIONSHIPS TO REMEMBER:
 - `clientProperty` table = Contains client addresses and property details
 
 IMPORTANT BUSINESS LOGIC:
-- For total expense amounts, use the 'Total' column from the 'Expenses' table
-- For job-related expenses, join with the 'Jobs' table
-- For payment information, use the 'PaidAmount' column which represents the total amount paid
-- For revenue calculations, use the 'NetTotal' column from the 'Invoice' table (no complex joins needed for calculation)
-- In the 'Job' table:
-  - 'ExpenseTotal' = Total expense amount for that specific job
-  - 'TotalPrice' = Total price for that specific job
+- Total expense amounts are derived from the 'Total' column in the 'Expenses' table.
+- For job-specific expenses, join with the 'Job' table; otherwise, no join is required for general expense totals.
+- Payment information is found in the 'PaidAmount' column, which represents the total amount paid.
+- Revenue is calculated using the 'NetTotal' column from the 'Invoice' table, with no additional joins needed.
+- Within the 'Job' table:
+  - 'ExpenseTotal' stores the total expense amount for that specific job.
+  - 'TotalPrice' stores the total price for that specific job.
 
-# Job	
+# job	
 Description: The job table stores the basic job details like job title, the type of job (one-off or recurring), job status, and job costing and taxes. This helps to represent data based on a job.
 PK: Id
 FKs: ClientId-> Clients(ClientId),ClientPropertyId-> ClientProperty(Id),ClientContactId-> ClientContact(Id),typeId-> JobType(Id),TaxId-> Tax(TaxId),CompanyId-> Company(CompanyId)
+
+# JobSchedule
+Description: The JobSchedule table stores scheduling information for jobs and requests, where a schedule can belong either to a job (when JobId is present) or to a request (when RequestId is present). A job can have one or multiple schedule records. Each schedule represents either a recurring job (IsRecurring = 1, meaning schedule) or a one-off visit (IsRecurring = 0, meaning visit).
+PK: Id
+FKs: JobId->Job(Id),RequestId->Request(Id),CompanyId->Company(CompanyId)
+
+#JobScheduleUsers
+Description: Stores information about the technicians/users assigned to a job schedule, where each record links a user or team to a specific schedule. The entry belongs to a job when JobId is present, or to a request when RequestId is present. SourceType indicates whether the schedule is for a recurring job (“Schedule”) or a one-off visit (“Visit”). Includes assignment details along with soft-delete and notification flags.
+PK: Id
+FKs: JobScheduleId->JobSchedule(Id),UserId->Users(Id),CompanyId->Company(CompanyId),TeamId->Team(Id),JobId->Job(Id),RequestId->Request(Id)
 
 # Payroll
 Description: The Payroll table stores information about already processed (paid) payroll data. Each record represents payroll details for a specific user during a payroll run. Stores payroll Run Date, User ID, Total Payable Amount, Paid Status. This table holds data at the time payroll is generated. Records are updated/marked as paid once the payroll is processed and completed.
@@ -60,7 +71,7 @@ Description: The Users table stores information about all individuals who intera
 Primary Key: UserID
 Foreign Keys: CompanyID->Companies(CompanyID)
 
-# CompanyUsers
+# companyUsers
 Description: The CompanyUsers table defines the relationship between companies and users, indicating which employees, administrators, or contractors belong to each company.
 This table is especially useful in systems that support multiple companies and users, as it enables efficient management and tracking of users within their respective organizations. Additionally, the CompanyUsers table stores user-specific details per company, such as work information and rate details used for payroll and invoicing purposes.
 Primary Key: Companies(CompanyID),Users(UserId)
@@ -71,67 +82,67 @@ Description: The Clients table stores information about customers or organizatio
 Primary Key: ClientId
 Foreign Keys: CompanyID->Companies(CompanyID)
 
-# ClientProperty
+# clientProperty
 Description: The clientProperty table stores details about properties or locations linked to a client. For example, a client may have multiple offices, or sites where jobs and services are performed. This table helps companies manage work at specific client locations by keeping property-related details (like address or site info) separate from the main client record.
 Primary Key: ID
 Foreign Keys: ClientId->Clients(ClientId)
 
-# ClientContact
+# clientContact
 Description: The clientContact table stores information about individuals associated with a client, such as the primary contact, billing contact, or site contact.
 Primary Key: ClientContactId
 Foreign Keys: ClientId->Clients(ClientId),CompanyID->Companies(CompanyID)
 
-# Countries
+# countries
 Description: The countries table stores a list of countries along with their details such as country name, code, mobile code, and currency. It is mainly used to link users, clients, ClientProperty, and companies to their country, for address management and currency handling.
 Primary Key: CountryId
 Foreign Keys: (none)
 
-# CheckList
+# checkList
 Description: The checkList table stores predefined lists of tasks, steps, or items that need to be completed as part of a job, visit, or project. It serves as the master record for checklist templates used across the system.
 Primary Key: Id
 Foreign Keys: (none)
 
-# CheckListDetails
+# checkListDetails
 Description: The checkListDetails table stores the individual items or tasks that belong to a checklist. Each record represents a single step (like "Check equipment," "Take photos," or "Get client signature") that is part of a larger checklist. It helps break down a checklist into detailed actions so they can be tracked and completed one by one.
 Primary Key: Id
 Foreign Keys: (none)
 
-# DocumentCategory
+# documentCategory
 Description: The documentCategory table is used to group company documents into categories
 Primary Key: CategoryId
 Foreign Keys: (none)
 
-# DocumentSubCategory
+# documentSubCategory
 Description: The documentSubCategory table is used to create sub-categories under a main document category. Each sub-category is linked to a company and a document category, making it easier to organize documents in a more detailed way (for example, under "Financial" → "Invoices", "Receipts").
 Primary Key: SubCategoryId
 Foreign Keys: (none)
 
-# CompanyDocument
+# companyDocument
 Description: The companyDocument table stores all the important files and documents related to a company. Each record represents one uploaded document (like licenses, contracts, policies, or certificates) that belongs to a company. Documents are uploaded by category and sub-category. Also Document type is defined as a private document or a public Document.
 Primary Key: DocumentId
 Foreign Keys: (none)
 
-# Currency
+# currency
 Description: The currency table stores information about different currencies, including their name, code, and symbol. It is mainly used to support financial transactions, invoicing, and international payments by linking to countries and companies.
 Primary Key: CurrencyId
 Foreign Keys: (none)
 
-# DocNumbers
+# docNumbers
 Description: The docNumbers table is used to manage document numbering for different records (like invoices, jobs, or quotes). It helps keep documents organized by storing the next number, prefix, suffix, and formatting rules for each company.
 Primary Key: (none)
 Foreign Keys: CompanyID->Companies(CompanyID)
 
-# Feedback
+# feedback
 Description: The feedback table stores different feedback categories created by a company.
 Primary Key: Id
 Foreign Keys: (none)
 
-# FeedbackQuestions
+# feedbackQuestions
 Description: The feedbackQuestions table stores the list of questions linked to a specific feedback category. It allows companies to define what questions will be asked when collecting feedback from clients or technicians.
 Primary Key: Id
 Foreign Keys: (none)
 
-# FeedbackResponse
+# feedbackResponse
 Description: The feedbackResponse table stores the answers given to feedback questions. It links each response to a job, client, and feedback form, capturing ratings or comments submitted.
 Primary Key: Id
 Foreign Keys: (none)
@@ -146,7 +157,7 @@ Description: The Industry table stores a list of industries (like Construction, 
 Primary Key: Id
 Foreign Keys: (none)
 
-# IndustryServices
+# industryServices
 Description: The industryServices table stores the list of services offered within a specific industry.
 Primary Key: Id
 Foreign Keys: IndustryId->Industry(Id)
@@ -166,112 +177,120 @@ Description: The InvoiceDetails table stores detailed line items for each invoic
 Primary Key: Id
 Foreign Keys: InvoiceId->Invoice(Id),CompanyID->Companies(CompanyID),ServiceId->Services(ServiceId)
 
-# InvoiceLaborCost
+# invoiceLaborCost
 Description: The invoiceLaborCost table stores detailed labor charges for an invoice, including hours worked, employee costs, billing rates, and overtime or premium calculations. It helps companies track labor expenses and generate accurate billing for client jobs.
 Primary Key: Id
 Foreign Keys: (none)
 
-# InvoiceExpenseCost
+# invoiceExpenseCost
 Description: The invoiceExpenseCost table stores the expenses related to an invoice, such as materials, travel, or other costs incurred for a job.
 Primary Key: Id
 Foreign Keys: (none)
 
-# Reminder
+# reminder
 Description: The reminder table stores scheduled reminders for jobs, invoices, tasks, or other activities within a company. Each record represents a single reminder and includes details about timing, recurrence, recipients, and notification preferences.
 Primary Key: Id
 Foreign Keys: CompanyID->Companies(CompanyID)
 
-# QuotationUsers
+# quotationUsers
 Description: The quotationUsers table stores users associated with or assigned to specific quotations, tracking their involvement and notification status for each quotation within the company.
 Primary Key: Id
 Foreign Keys: QuotationId->Quotation(Id),CompanyID->Companies(CompanyID),UserId->Users(UserID)
 
-# QuoteActivityAssignedUser
+# quoteActivityAssignedUser
 Description: The quoteActivityAssignedUser table links users to specific activities within a quotation, identifying who is responsible for each task and managing task assignments for quotation-related activities.
 Primary Key: QuoteActivityAssignId
 Foreign Keys: QuotationId->Quotation(Id),QuotationCRMId->QuotationCRM(Id),CompanyID->Companies(CompanyID),UserId->Users(UserID)
 
-# InvoiceReminders
+# invoiceReminders
 Description: The invoiceReminders table stores reminders related to invoices for users, including scheduling details, duration, notification preferences (such as email), and completion status. It helps manage and track invoice-related reminders for individuals or teams within a company.
 Primary Key: Id
 Foreign Keys: JobId->Job(Id),CompanyID->Companies(CompanyID)
 
-# InvoiceReminderUser
+# invoiceReminderUser
 Description: The invoiceReminderUser table links users or teams to specific invoice reminders, indicating who should receive the notification and managing reminder assignments within the company.
 Primary Key: Id
 Foreign Keys: InvoiceRemindersId->InvoiceReminders(Id),UserId->Users(UserID),TeamId->Team(Id),CompanyID->Companies(CompanyID)
 
-# QuotationDetails
+# quotationDetails
 Description: The quotationDetails table stores line-item details for each quotation, including services, quantities, pricing, and descriptions. Each quotation can have multiple QuotationDetails entries representing the individual services or items included in the quote.
 Primary Key: Id
 Foreign Keys: QuoteId->Quotation(Id),CompanyID->Companies(CompanyID),ServiceID->Services(ServiceId)
 
-# JobAttachment
+# jobAttachment
 Description: The jobAttachment table stores files or documents linked to jobs, including images, PDFs, or other relevant attachments. It tracks whether the attachment is added by a technician and categorizes attachments by type for proper organization and reference.
 Primary Key: Id
 Foreign Keys: JobId->Job(Id),CompanyID->Companies(CompanyID)
 
-# JobCheckListDetails
+
+# jobCheckListDetails
 Description: The jobCheckListDetails table stores checklist items associated with each job, capturing their status, order, and completion information. It links jobs to predefined checklist items from the CheckList and CheckListDetails tables to ensure tasks are tracked and completed according to company standards.
 Primary Key: Id
 Foreign Keys: CompanyId->Companies(CompanyID),JobId->Job(Id),CheckListId->CheckList(Id)
 
-# JobDetails
+
+# jobDetails
 Description: The jobDetails table stores detailed line-item information for each job, including associated services, quantities, pricing, and descriptions. Each job can have multiple JobDetails records representing individual services or items performed or billed within that job.
 Primary Key: Id
 Foreign Keys: JobId->Job(Id),CompanyID->Companies(CompanyID),ServiceID->Services(ServiceId)
 
-# JobDetails_Users
+# jobDetails_Users
 Description: The jobDetails_Users table links technicians to specific job detail entries, tracking assignments and whether each technician has been paid.
 Primary Key: JobdetailUserId
 Foreign Keys: JobdetailId->Jobdetails(Id),TechnicianId->Users(UserID)
 
-# JobRates
+
+# jobRates
 Description: The jobRates table stores billing and payroll rates for users assigned to specific jobs, including overtime, premium, and travel rates. While users have default rate settings in the CompanyUsers table, this table allows defining job-specific rate variations that override the defaults for more accurate billing and payroll calculations.
 Primary Key: JobRateId
 Foreign Keys: UserId->Users(UserID),JobId->Job(Id),CompanyId->Companies(CompanyID)
 
-# JobType
+
+# jobType
 Description: The jobType table stores custom job categories defined by each company. In addition to the system-defined static types — Recurring and One-Off — jobs can also be assigned a type from this table to represent other custom classifications for better organization and reporting.
 Primary Key: Id
 Foreign Keys: CompanyId->Companies(CompanyID)
 
-# Leave
+
+# leave
 Description: The leave table stores employee leave requests, capturing details such as start and end dates, leave type (vacation, day off, medical, others), and current status (pending, approved, rejected, or cancelled). It also includes information about approvals, remarks, and internal notes, helping manage and track leave requests across the organization.
 Primary Key: Id
 Foreign Keys: CompanyId->Companies(CompanyID),TechnicianId->Users(UserID),AssignUserId->Users(UserID)
 
-# LeaveAttachment
+
+# leaveAttachment
 Description: The leaveAttachment table stores documents or files linked to employee leave requests, such as medical certificates, approval letters, or supporting evidence. It helps maintain proper documentation for leave validation and recordkeeping within the company.
 Primary Key: Id
 Foreign Keys: LeaveId->Leave(Id),CompanyId->Companies(CompanyID)
 
-# Quotation
+# quotation
 Description: The Quotation table stores information about quotations or estimates sent to clients. It includes details such as quoted amounts, discounts, taxes, and deposit information. This table is used to manage and track the lifecycle of client quotes, from creation to approval or conversion into jobs or invoices.
 Primary Key: Id
 Foreign Keys: ClientId->Clients(ClientId),ClientPropertyId->ClientProperty(ID),CompanyID->Companies(CompanyID),TaxID->Tax(TaxId)
 
-# PaymentAttachment
+
+# paymentAttachment
 Description: The paymentAttachment table stores files or documents associated with specific payment records. It helps maintain supporting evidence such as receipts or transaction proofs for payments within each company.
 Primary Key: Id
 Foreign Keys: PaymentID->Payment(Id),CompanyID->Companies(CompanyID)
 
-# PublicHoliday
+# publicHoliday
 Description: The publicHoliday table stores information about company-specific holidays. It is used to track official leave dates and manage scheduling, attendance, and payroll calculations across different companies.
 Primary Key: Id
 Foreign Keys: CompanyId->Companies(CompanyID)
 
-# Payment
+# payment
 Description: The payment table stores all payment transactions collected against invoices. It supports partial payments and multiple payment methods such as cash, cheque, credit card, bank transfer, money order, Square, and others. This table is used to track and calculate received payments, synchronize payment records across systems, and manage refund or error-handling details related to invoices.
 Primary Key: Id
 Foreign Keys: CompanyID->Companies(CompanyID),ClientId->Clients(ClientId),InvoiceID->Invoice(Id)
 
-# Expenses
+
+# expenses
 Description: The expenses table stores detailed information about all job-related and direct business expenses. It is primarily used for financial analysis, including calculating profit margins, tracking billable and non-billable costs, and managing reimbursements or payments. Each record represents a single expense entry linked to clients, companies, accounts, users, or specific jobs.
 Primary Key: Id
 Foreign Keys: ClientId->Clients(ClientId),CompanyId->Companies(CompanyID),AccountCodeId->AccountCode(Id),UserId->Users(UserID),JobId->Job(Id),AllowanceId->Allowance(AllowanceId)
 
-# ReportColumnDetails
+# reportColumnDetails
 Description: The reportColumnDetails table stores information about the columns displayed in different reports for a company.
 Primary Key: (none)
 Foreign Keys: (none)
@@ -282,52 +301,52 @@ Within the Request module, there is an On-Site Assessment feature, where users c
 Primary Key: Id
 Foreign Keys: ClientId->Clients(ClientId),ClientPropertyId->ClientProperty(ID),TypeId->JobbType(Id),CompanyID->Companies(CompanyID)
 
-# RequestAttachment
+# requestAttachment
 Description: The requestAttachment table stores files or documents related to a client request, such as photos, PDFs, or supporting documents.
 Primary Key: Id
 Foreign Keys: RequestId->Request(Id),CompanyID->Companies(CompanyID)
 
-# Roles
+# roles
 Description: The roles table stores the different user roles within a company, such as admin, manager, or technician.
 Primary Key: RoleId
 Foreign Keys: (none)
 
-# Services
+# services
 Description: The services table stores all the services offered by a company, including details like name, description, quantity, cost, and pricing.
 Primary Key: ServiceId
 Foreign Keys: CompanyId->Companies(CompanyID),ServiceTemplateId->ServiceTemplateId->ServiceTemplate(ServiceTemplateId)
 
-# ServiceTemplate
+# serviceTemplate
 Description: The serviceTemplate table stores predefined templates for services, including total cost, title, and rate settings.
 Primary Key: ServiceTemplateId
 Foreign Keys: (none)
 
-# Shift
+# shift
 Description: The shift table stores work shifts for a company, including start and end times and whether the shift is active.
 Primary Key: Id
 Foreign Keys: (none)
 
-# TemplateDetails
+# templateDetails
 Description: The templateDetails table stores detailed information and configurations for templates linked to ServiceTemplate.
 Primary Key: (none)
 Foreign Keys: (none)
 
-# Tax
+# tax
 Description: The tax table stores tax rates and related information used in billing, invoicing, and expense calculations. It helps companies apply the correct taxes to services, products, and financial transactions.
 Primary Key: TaxId
 Foreign Keys: CompanyId->Companies(CompanyID)
 
-# TaxAgency
+# taxAgency
 Description: The taxAgency table stores information about tax agencies associated with a company, including QuickBooks integration details.
 Primary Key: TaxAgencyId
 Foreign Keys: (none)
 
-# Team
+# team
 Description: The team table stores information about teams within a company, including team name, supervisor, and associated users.
 Primary Key: Id
 Foreign Keys: CompanyId->Companies(CompanyID)
 
-# TeamUsers
+# teamUsers
 Description: The teamUsers table links users to specific teams within a company, including information about supervisors.
 Primary Key: Id
 Foreign Keys: CompanyId->Companies(CompanyID), TeamId->Team(Id), UserId->Users(UserID)
@@ -342,33 +361,31 @@ Description: The TimeZone table stores information about different time zones, i
 Primary Key: Id
 Foreign Keys: (none)
 
-# RecurringJob
+# recurringJob
 Description: In recurringJob, clients can schedule jobs with a specific date and time. They can set the job to repeat on particular days, define the duration, and choose the duration type, making it easy to automate jobs according to their needs.
 Primary Key: Id
 Foreign Keys: JobId->Job(Id),CompanyID->Companies(CompanyID)
 
-# QuotationAttachment
+# quotationAttachment
 Description: The quotationAttachment table stores files related to quotations, such as PDFs, images, or supporting documents. It helps companies organize and reference all documents associated with a quotation.
 Primary Key: Id
-Foreign Keys: QuoteId->Quotation(Id),CompanyID->Companies(CompanyID)
+Foreign Keys: QuoteId->Quotation(Id),CompanyID - Companies(CompanyID)
 
-# QuotationCRM
+# quotationCRM
 Description: The quotationCRM table stores CRM activities related to quotations, including scheduled tasks, follow-ups, and assigned users. It helps companies track interactions and manage follow-up actions for each quotation. Within QuotationCRM, clients can 'Add Notes' with a history view to track previous notes, 'Set Reminders' to schedule jobs (including recurring reminders), 'Log Activities' to schedule calls, meetings, tasks, deadlines, emails, or lunches, with associated dates and times.
 Primary Key: Id
-Foreign Keys: QuotationId->Quotation(Id),CompanyId->Companies(CompanyID)
+Foreign Keys: QuotationId - Quotation(Id),CompanyId - Companies(CompanyID)
 
 # Allowence
 Description: The Allowence table stores the monetary benefits provided to the employee like Food allowences 
 Primary Key: AllowenceId
-Foreign Keys: CompanyId->Companies(CompanyID)
 
 # UserAllowence
-Description: The UserAllowence table assigns allowances to specified users
+Description: The UserAllowence table assigns  allowances to specified users
 Primary Key: UserAllowenceId
-Foreign Keys: UserId->Users(UserID),AllowenceId -> Allowence(AllowenceId)
 
 # CustomField
-Description: The custom field table stores the custom fields to add flexible input types like - dropdowns,textarea,checkbox,datepicker that companies create to extend to the modules - Quote.Job,Request,Invoice
+Description: The custom field table stores the custom fields to add flexible input types like - dropdowns,textarea,checkbox,datepicker that companies create to extend to the modules - Quote.Job,Request,Invoice,
 Primary Key: CustomFieldId
 Foreign Keys: CompanyId
 
@@ -377,37 +394,67 @@ Description: The custom field module allows custom field to be applied to multip
 Primary Key: CustomFieldModuleId
 Foreign Keys: CompanyId -> Companies(CompanyID),CustomFieldId -> CustomField(CustomFieldId)
 
-# ModuleType
-Description: The ModuleType table includes all the available modules like - Dashboard,Request,Quote,Job,Invoices etc
-Primary Key: Id
-Foreign Keys: (none)
-
 # General_Config
 Description: The General_Config table stores company-level general settings which include whether contact persons can log in, how job titles are generated (auto or manual), and support for custom job title naming
 Primary Key: GeneralConfigId
-Foreign Keys: CompanyId -> Companies(CompanyID)
 
-# RequestDetails
-Description: The RequestDetails table stores detailed information related to a customer request, including service descriptions, assessment dates/times, scheduling preferences
+# Invoice_Config
+Description: The InvoiceConfig table stores company-specific invoice settings that determine how invoice number generating, billing, overtime rules, QuickBooks mappings, PDF formatting, and automated email behaviors function
 Primary Key: Id
-ForeignKey: RequestId -> Request(Id),CompanyId -> Companies(CompanyID)
 
 # Job_Config
 Description: The JobConfig Table stores job-related configuration settings for each company, such as GPS tracking, job numbering, checklist options, clock-in rules, pre-job timesheet/expense permissions, technician assignment settings, and job email templates
 Primary Key: Id
-Foreign Keys: CompanyId -> Companies(CompanyID)
 
-# JobSchedule
-Description: 
-Primary Key: JobScheduleId
-Foreign Keys: CompanyId -> Companies(CompanyID),JobId
+# ModuleType
+Description: The ModuleType table includes all the available modules like - Dashboard,Request,Quote,Job,Invoices etc
+Primary Key: Id
+
+# OperationType
+Description: The Operation Type Table includes the operation performed system wide such as creating, updating, deleting, completing, or assigning records 
+Primary Key: Id
+
+# PaymentInvoiceRefrence
+Description: The PaymentInvoiceRefrence table stores the link between a payment and the invoices it is applied to.
+Primary Key: Id
 
 # Payroll_OtherEarnings
 Description: The Payroll_OtherEarnings table stores additional earning entries linked to a payroll record like bonuses, incentives, adjustments, or any extra income
 Primary Key: OtherEarningsId
-Foreign Keys: (none)
 
 # PayrollConfig
 Description: The PayrollConfig table stores all payroll-related settings like how overtime, job dates, rounding rules, payroll periods, allowances, and break-time logic are applied during payroll generation.
 Primary Key: Id
-Foreign Keys: (none)
+
+# QuoteConfig
+Description: The QuoteConfig table stores the notes and email templates company wise
+Primary Key: Id
+
+# RequestConfig
+Description: The RequestConfig table stores customizable success and error messages that a company wants to display when handling requests 
+Primary Key: RequestConfigId
+
+# RequestDetails
+Description: The RequestDetails table stores detailed information related to a customer request, including service descriptions, assessment dates/times, scheduling preferences
+Primary Key: Id
+ForeignKey: RequestId -> Request(Id) , CompanyId -> Companies(CompanyID)
+
+# SubContractor
+Description: The Subcontactor table stores the information about Subcontractors
+Primary Key: SubContractorId
+Foreign Keys: CompanyId -> Companies(CompanyID),CountryId -> Countries(CountryID)
+
+# CustomForm
+Description: The CustomForm Table stores the information about the customized forms created
+Primary Key: Id
+Foreign Keys: CompanyId->Companies(CompanyID)
+
+# CustomFormAttachment
+Description: Stores attachments related to custom forms
+Primary Key: ID
+Foreign Keys: CompanyID->Companies(CompanyID)
+
+# CustomFormResponse
+Description:Stores responses submitted for custom forms in JSON format
+Primary Key: Id
+Foreign Keys: CompanyID->Companies(CompanyID)
