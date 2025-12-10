@@ -6,7 +6,7 @@ import json
 import os
 import logging
 from datetime import datetime, timezone
-from langgraph_sql_agent_final import run_conversational_query, HumanMessage, AIMessage
+from langgraph_sql_agent_chat import run_conversational_query, HumanMessage, AIMessage
 import sqlparse
 from sqlparse import tokens as T
 from auth import token_required
@@ -42,6 +42,7 @@ class ChatRequest(BaseModel):
     #max_iterations: Optional[int] = 3
     #chat_history: List[Dict[str, str]] = []
     company_id: Optional[int] = 1  # Default company ID
+    thread_id: Optional[str] = None # For session persistence
 
 def format_sql(sql: str) -> str:
     """Format SQL using token-based parsing for clean, readable output."""
@@ -77,39 +78,51 @@ def chat():
         user_id = str(user_info.get("userId")) if user_info.get("userId") else None
 
         query = chat_request.message
+        thread_id = chat_request.thread_id
 
         if not any(tag in query.lower() for tag in ['companyid', 'company id']):
             query = f"[CompanyID: {company_id}] {query}"
         
         # Process message
-        result = run_conversational_query(query=query, company_id=company_id)
+        result = run_conversational_query(query=query, company_id=company_id, thread_id=thread_id)
 
-        error = result.get("error")
-        results = result.get("results")
-
-        # Prepare response message
-        if error:
-            natural_response = None  # no natural response when error
-            final_error = error
-        elif not results:
-           natural_response = "No data found."
-           final_error = None
+        # Format the response
+        if result.get("is_clarification"):
+             # It's a question from the bot
+             message = result["natural_response"]
+             natural_response = message
+             
+        elif result.get("error"):
+            # ... (existing error handling)
+            message = f"❌ Error: {result['error']}"
+            natural_response = message
+        elif "summary" in result and not result.get("results"):
+            # Use the summary for general queries
+            message = result["summary"]
+            natural_response = message
+        elif not result.get("results"):
+            message = "ℹ️ No results found for your query."
+            natural_response = message
         else:
+            # Use the natural response if available, otherwise use the raw results
             natural_response = result.get("natural_response", "Here are your results:")
-            # if "|" in natural_response and "\n|-" in natural_response:
-            #     message = natural_response
-            # else:
-            #     message = natural_response + "\n\n" + json.dumps(result["results"], default=str)
-            final_error = None
+            if "|" in natural_response and "\n|-" in natural_response:
+                message = natural_response
+            else:
+                message = natural_response + "\n\n" + json.dumps(result["results"], default=str)
+
 
         formatted_sql = format_sql(result.get("sql_query", ""))
 
         response = {
-            #"message": message,
+            "message": message,
             "natural_response": natural_response,
-            #"summary_text": result.get("summary_text", natural_response),
-            #"sql": formatted_sql,
-            "error": final_error
+            "summary_text": result.get("summary_text", natural_response),
+            "sql": formatted_sql,
+            "error": result.get("error"),
+            "company_id": company_id,
+            "thread_id": result.get("thread_id"),
+            "is_clarification": result.get("is_clarification", False)
         }
 
         # ⏱ End timing
@@ -123,7 +136,7 @@ def chat():
             "natural_response": natural_response,
             "sqlQuery": formatted_sql,
             "rating": 0,
-            "error": final_error,
+            "error": result.get("error"),
             "createdAt": created_at,
             "respondedAt": datetime.now(timezone.utc),
             "executionDuration": execution_time_ms,

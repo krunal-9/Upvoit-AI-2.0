@@ -27,14 +27,14 @@ PK: Id
 FKs: ClientId-> Clients(ClientId),ClientPropertyId-> ClientProperty(Id),ClientContactId-> ClientContact(Id),typeId-> JobType(Id),TaxId-> Tax(TaxId),CompanyId-> Company(CompanyId)
 
 # JobSchedule
-Description: The JobSchedule table stores scheduling information for jobs and requests, where a schedule can belong either to a job (when JobId is present) or to a request (when RequestId is present). A job can have one or multiple schedule records. Each schedule represents either a recurring job (IsRecurring = 1, meaning schedule) or a one-off visit (IsRecurring = 0, meaning visit).
+Description: The JobSchedule table stores information about scheduled jobs. Each record represents a job schedule with a start date, end date, and job ID. This table is used to track the schedule of jobs and their associated job IDs.
 PK: Id
-FKs: JobId->Job(Id),RequestId->Request(Id),CompanyId->Company(CompanyId)
+FKs: JobId->Job(Id),CompanyId->Company(CompanyId)
 
 #JobScheduleUsers
-Description: Stores information about the technicians/users assigned to a job schedule, where each record links a user or team to a specific schedule. The entry belongs to a job when JobId is present, or to a request when RequestId is present. SourceType indicates whether the schedule is for a recurring job (“Schedule”) or a one-off visit (“Visit”). Includes assignment details along with soft-delete and notification flags.
+Description: The JobScheduleUsers table stores information about users associated with job schedules. Each record represents a user and their job schedule ID. This table is used to track the users associated with job schedules.
 PK: Id
-FKs: JobScheduleId->JobSchedule(Id),UserId->Users(Id),CompanyId->Company(CompanyId),TeamId->Team(Id),JobId->Job(Id),RequestId->Request(Id)
+FKs: JobScheduleId->JobSchedule(Id),UserId->Users(Id),CompanyId->Company(CompanyId)
 
 # Payroll
 Description: The Payroll table stores information about already processed (paid) payroll data. Each record represents payroll details for a specific user during a payroll run. Stores payroll Run Date, User ID, Total Payable Amount, Paid Status. This table holds data at the time payroll is generated. Records are updated/marked as paid once the payroll is processed and completed.

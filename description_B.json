@@ -8196,7 +8196,7 @@
         ]
     },
     "JobSchedule": {
-        "description": "The JobSchedule table stores scheduling information for jobs and requests, where a schedule can belong either to a job (when JobId is present) or to a request (when RequestId is present). A job can have one or multiple schedule records. Each schedule represents either a recurring job (IsRecurring = 1, meaning schedule) or a one-off visit (IsRecurring = 0, meaning visit).",
+        "description": "Stores scheduling details for jobs, including recurrence, assigned times, status (completed, verified, invoiced, cancelled), team involvement, supervisor info, signatures, reminders, and full lifecycle tracking (create/modify/delete) for each company.",
         "columns": [
             {
                 "Column Name": "JobScheduleId",
@@ -8405,7 +8405,7 @@
         ]
     },
     "JobScheduleUsers": {
-        "description": "Stores information about the technicians/users assigned to a job schedule, where each record links a user or team to a specific schedule. The entry belongs to a job when JobId is present, or to a request when RequestId is present. SourceType indicates whether the schedule is for a recurring job (“Schedule”) or a one-off visit (“Visit”). Includes assignment details along with soft-delete and notification flags.",
+        "description": "Maps users (or team members) to job schedules, storing assignment details along with company context, job/request linkage, notification settings, and deletion status.",
         "columns": [
             {
                 "Column Name": "JobScheduleUserId",
