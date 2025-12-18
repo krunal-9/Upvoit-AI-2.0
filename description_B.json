@@ -260,12 +260,6 @@
                 "description": "Primary key (unique identifier for the user)."
             },
             {
-                "Column Name": "CompanyID",
-                "Data Type": "int",
-                "constraints": "FK",
-                "description": "Stores the unique identifier of the company. This column references the Companies table (CompanyID column). Use this relationship to create joins for retrieving company-specific data or fetching detailed company information."
-            },
-            {
                 "Column Name": "FirstName",
                 "Data Type": "nvarchar",
                 "constraints": "",
@@ -2378,7 +2372,7 @@
                 "Column Name": "Cost",
                 "Data Type": "decimal(18, 2)",
                 "constraints": "",
-                "description": "Cost incurred (internal perspective, for profit/loss analysis)."
+                "description": "Per-unit cost price."
             },
             {
                 "Column Name": "Total",
@@ -3010,7 +3004,7 @@
                 "Column Name": "ReportType",
                 "Data Type": "int",
                 "constraints": "",
-                "description": "Type of report (    ProjectedIncome = 1,\n    Transaction = 2,\n    Invoices = 3,\n    Taxation = 4,\n    AgedReceivablesInvoiceWise = 5,\n    AgedReceivablesClientWise = 6,\n    CashFlowForecastInvoiceWise = 7,\n    CashFlowForecastClientWise = 8,\n    ClientStatement = 9,\n    Expenses = 10,\n    PLReport = 11,\n    Payroll = 12,\n    Visits = 13,\n    OneOffJobs = 14,\n    RecurringJobs = 15,\n    Requests = 16,\n    Quotes = 17,\n    TimesheetAllLogs = 18,\n    TimesheetSummaryLogs = 19,\n    FeedbackAllRating = 20,\n    FeedbackSummary = 21,\n    LaborExpenseIndividual = 22,\n    LaborExpenseGroup = 23,\n    EmailTransaction = 24)."
+                "description": "Type of report (    ProjectedIncome = 1,\n    Transaction = 2,\n    Invoices = 3,\n    Taxation = 4,\n    AgedReceivablesInvoiceWise = 5,\n    AgedReceivablesClientWise = 6,\n    CashFlowForecastInvoiceWise = 7,\n    CashFlowForecastClientWise = 8,\n    ClientStatement = 9,\n    Expenses = 10,\n    PLReport = 11,\n    Payroll = 12,\n    Visits = 13,\n    OneOffJobs = 14,\n    RecurringJobs = 15,\n    Requests = 16,\n    Quotes = 17,\n    TimesheetAllLogs = 18,\n    TimesheetSummaryLogs = 19,\n    FeedbackAllRating = 20,\n    FeedbackSummary = 21,\n    LaborExpenseIndividual = 22,\n    LaborExpenseGroup = 23,\n    EmailTransaction = 24,\n Schedule=25 )."
             },
             {
                 "Column Name": "VisibleColJson",
@@ -6141,7 +6135,7 @@
                 "Column Name": "QuoteStatus",
                 "Data Type": "int",
                 "constraints": "",
-                "description": "Current status of the quotation (1 = All, 2 = Created, 3 = Sent, 4 = Approved, 5 = Rejected, 6 = Expired)."
+                "description": "Current status of the quotation (1 = Created, 2 = Sent, 3 = Approved, 4 = Rejected, 5 = Expired)."
             },
             {
                 "Column Name": "QuoteDate",
@@ -8704,6 +8698,291 @@
                 "Data Type": "int",
                 "constraints": "",
                 "description": "Type/category of the earning."
+            }
+        ]
+    },
+    "InvoiceConfig": {
+        "description": "Description for table InvoiceConfig.",
+        "columns": [
+            {
+                "Column Name": "Id",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Unique identifier for the record."
+            },
+            {
+                "Column Name": "CompanyId",
+                "Data Type": "nan",
+                "constraints": "",
+                "description": "Identifier of the company this record belongs to."
+            },
+            {
+                "Column Name": "IsBillable",
+                "Data Type": "nan",
+                "constraints": "",
+                "description": "Flag indicating if the item is billable."
+            },
+            {
+                "Column Name": "IsInvoiceOverTime",
+                "Data Type": "nan",
+                "constraints": "",
+                "description": "Flag indicating if overtime should be invoiced."
+            },
+            {
+                "Column Name": "InvoiceOverTimeType",
+                "Data Type": "nan",
+                "constraints": "",
+                "description": "Type of overtime invoicing applied."
+            },
+            {
+                "Column Name": "QBIncomeAccountId",
+                "Data Type": "nan",
+                "constraints": "",
+                "description": "QuickBooks income account identifier."
+            },
+            {
+                "Column Name": "QBExpenseAccountId",
+                "Data Type": "nan",
+                "constraints": "",
+                "description": "QuickBooks expense account identifier."
+            },
+            {
+                "Column Name": "IsSaturdayOverTime",
+                "Data Type": "nan",
+                "constraints": "",
+                "description": "Flag indicating if Saturday overtime applies."
+            },
+            {
+                "Column Name": "IsSundayOverTime",
+                "Data Type": "nan",
+                "constraints": "",
+                "description": "Flag indicating if Sunday overtime applies."
+            },
+            {
+                "Column Name": "GracePeriod",
+                "Data Type": "nan",
+                "constraints": "",
+                "description": "Grace period allowed for the task or invoice."
+            },
+            {
+                "Column Name": "LaborServiceId",
+                "Data Type": "nan",
+                "constraints": "",
+                "description": "Identifier for the associated labor service."
+            },
+            {
+                "Column Name": "LaborDescription",
+                "Data Type": "nan",
+                "constraints": "",
+                "description": "Description of the labor service."
+            },
+            {
+                "Column Name": "OverTimeLaborServiceId",
+                "Data Type": "nan",
+                "constraints": "",
+                "description": "Identifier for the overtime labor service."
+            },
+            {
+                "Column Name": "ExpenseDescription",
+                "Data Type": "nan",
+                "constraints": "",
+                "description": "Description of the expense."
+            },
+            {
+                "Column Name": "PdfVersion",
+                "Data Type": "nan",
+                "constraints": "",
+                "description": "Version of the generated PDF."
+            },
+            {
+                "Column Name": "Notes",
+                "Data Type": "nan",
+                "constraints": "",
+                "description": "Additional notes for the record."
+            },
+            {
+                "Column Name": "PdfCustomField",
+                "Data Type": "nan",
+                "constraints": "",
+                "description": "Custom fields included in the PDF."
+            },
+            {
+                "Column Name": "InvoiceMailHtml",
+                "Data Type": "nan",
+                "constraints": "",
+                "description": "HTML content used for invoice emails."
+            },
+            {
+                "Column Name": "MailSubjectDescription",
+                "Data Type": "nan",
+                "constraints": "",
+                "description": "Subject line for invoice email."
+            },
+            {
+                "Column Name": "isInvoiceBeforeJobComplete",
+                "Data Type": "nan",
+                "constraints": "",
+                "description": "Flag indicating if invoicing can occur before job completion."
+            },
+            {
+                "Column Name": "isBulkInvoice",
+                "Data Type": "nan",
+                "constraints": "",
+                "description": "Flag indicating if bulk invoicing is enabled."
+            },
+            {
+                "Column Name": "allowAutomaticMailSent",
+                "Data Type": "nan",
+                "constraints": "",
+                "description": "Flag to allow automatic sending of emails."
+            }
+        ]
+    },
+    "PaymentInvoiceRefrence": {
+        "description": "Description for table PaymentInvoiceRefrence.",
+        "columns": [
+            {
+                "Column Name": "Id",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Primary key. Unique identifier for the payment-invoice mapping record."
+            },
+            {
+                "Column Name": "PaymentId",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "Identifier of the payment associated with the record."
+            },
+            {
+                "Column Name": "InvoiceId",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "Identifier of the invoice linked to the payment."
+            },
+            {
+                "Column Name": "Amount",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Amount applied from the payment toward the invoice."
+            }
+        ]
+    },
+    "SubContractor": {
+        "description": "Description for table SubContractor.",
+        "columns": [
+            {
+                "Column Name": "SubContractorId",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Primary key (unique identifier for each record)."
+            },
+            {
+                "Column Name": "CompanyId",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Identifier of the company associated with the subcontractor."
+            },
+            {
+                "Column Name": "FirstName",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "Subcontractor’s first name."
+            },
+            {
+                "Column Name": "LastName",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "Subcontractor’s last name."
+            },
+            {
+                "Column Name": "MobileNo",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "Subcontractactor’s mobile phone number."
+            },
+            {
+                "Column Name": "Email",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "Subcontractor’s email address."
+            },
+            {
+                "Column Name": "Street1",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "Primary street address line."
+            },
+            {
+                "Column Name": "Street2",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "Secondary street address line (optional)."
+            },
+            {
+                "Column Name": "City",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "City of the subcontractor’s address."
+            },
+            {
+                "Column Name": "State",
+                "Data Type": "nvarchar",
+                "constraints": "",
+                "description": "State or region of the subcontractor’s address."
+            },
+            {
+                "Column Name": "Zipcode",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Postal or ZIP code."
+            },
+            {
+                "Column Name": "CountryId",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Identifier of the subcontractor’s country."
+            },
+            {
+                "Column Name": "IsDeleted",
+                "Data Type": "bit",
+                "constraints": "",
+                "description": "Soft delete flag indicating whether the record is deleted."
+            },
+            {
+                "Column Name": "CreatedDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Timestamp when the record was created."
+            },
+            {
+                "Column Name": "CreatedBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Identifier of the user/system who created the record."
+            },
+            {
+                "Column Name": "ModifiedDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Timestamp when the record was last modified."
+            },
+            {
+                "Column Name": "ModifiedBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Identifier of the user/system who modified the record."
+            },
+            {
+                "Column Name": "DeletedDate",
+                "Data Type": "datetime",
+                "constraints": "",
+                "description": "Timestamp when the record was deleted."
+            },
+            {
+                "Column Name": "DeletedBy",
+                "Data Type": "int",
+                "constraints": "",
+                "description": "Identifier of the user/system who deleted the record."
             }
         ]
     }

@@ -6,8 +6,10 @@ import uuid
 from datetime import datetime
 from typing import TypedDict, Annotated, Sequence, List, Dict, Any, Optional
 from langgraph.graph import StateGraph, END
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
-from langchain_core.prompts import ChatPromptTemplate
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph.message import add_messages
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
 from sqlalchemy import create_engine, text
@@ -38,11 +40,11 @@ configure_logging()
 logger = logging.getLogger("chart_agent")
 
 # Database connection
-DB_SERVER = os.getenv("DB_SERVER")
-DB_DATABASE = os.getenv("DB_DATABASE")
-DB_UID = os.getenv("DB_UID")
-DB_PWD = os.getenv("DB_PWD")
-DB_DRIVER = os.getenv("DB_DRIVER")
+DB_SERVER = os.getenv("DB_SERVER", "tcp:sql5106.site4now.net,1433")
+DB_DATABASE = os.getenv("DB_DATABASE", "db_a4a01c_upvoitai")
+DB_UID = os.getenv("DB_UID", "db_a4a01c_upvoitai_admin")
+DB_PWD = os.getenv("DB_PWD", "upvoit@123")
+DB_DRIVER = os.getenv("DB_DRIVER", "ODBC Driver 18 for SQL Server")
 
 odbc_params = (
     f"DRIVER={{{DB_DRIVER}}};"
@@ -52,7 +54,6 @@ odbc_params = (
     f"PWD={DB_PWD};"
     "Encrypt=yes;"
     "TrustServerCertificate=yes;"
-    "Trusted_Connection=yes;"
     "Connection Timeout=30;"
 )
 connection_string = f"mssql+pyodbc:///?odbc_connect={quote_plus(odbc_params)}"
@@ -86,6 +87,7 @@ DESCRIPTION_B = schema_cache.get("description_B.json")
 
 # State Definition
 class ChartState(TypedDict):
+    messages: Annotated[Sequence[BaseMessage], add_messages]
     query: str
     company_id: int
     selected_tables: List[str]
@@ -106,7 +108,7 @@ def get_table_selection_prompt() -> ChatPromptTemplate:
     Return a JSON object with a single key "tables" containing a list of table names.
     Example: {{"tables": ["Invoice", "Clients"]}}
     """),
-        ("human", "Query: {query}")
+        MessagesPlaceholder(variable_name="messages"),
     ])
 
 def get_chart_generation_prompt() -> ChatPromptTemplate:
@@ -154,7 +156,8 @@ def get_chart_generation_prompt() -> ChatPromptTemplate:
            }}
        }}
     """),
-        ("human", "User Query: {query}\nCompany ID: {company_id}\n\nDetailed Schema for Selected Tables:\n{schema_details}")
+        MessagesPlaceholder(variable_name="messages"),
+        ("human", "Company ID: {company_id}\n\nDetailed Schema for Selected Tables:\n{schema_details}\n\nUser Query: {query}")
     ])
 
 # --- Helpers ---
@@ -230,8 +233,11 @@ def select_tables(state: ChartState) -> ChartState:
         prompt = get_table_selection_prompt()
         chain = prompt | llm | JsonOutputParser()
         
+        # Use messages if available, otherwise fallback to query
+        messages = state.get("messages", [HumanMessage(content=state["query"])])
+        
         response = chain.invoke({
-            "query": state["query"],
+            "messages": messages,
             "table_summaries": DESCRIPTION_A
         })
         
@@ -279,8 +285,11 @@ def generate_chart_plan(state: ChartState) -> ChartState:
         
         schema_str = "\n\n".join(schema_details) if schema_details else "No schema found for selected tables."
         
+        messages = state.get("messages", [HumanMessage(content=state["query"])])
+        
         response = chain.invoke({
-            "query": state["query"],
+            "messages": messages,
+            "query": state["query"], # Still helpful for explicit current intent
             "company_id": state["company_id"],
             "schema_details": schema_str
         })
@@ -324,11 +333,24 @@ workflow.add_edge("select_tables", "planner")
 workflow.add_edge("planner", "executor")
 workflow.add_edge("executor", END)
 
-app = workflow.compile()
+# Initialize memory
+checkpointer = MemorySaver()
+app = workflow.compile(checkpointer=checkpointer)
 
-def run_chart_generation(query: str, company_id: int = 1) -> Dict[str, Any]:
+def run_chart_generation(query: str, company_id: int = 1, thread_id: str = None) -> Dict[str, Any]:
     """Main entry point for chart generation."""
-    initial_state = {
+    
+    # Generate a thread ID if one wasn't provided
+    if not thread_id:
+        thread_id = str(uuid.uuid4())
+        
+    config = {"configurable": {"thread_id": thread_id}}
+    
+    # Check if we should resume (add message) or verify new state
+    # For simplicity, we always assume new user message comes in "query"
+    
+    inputs = {
+        "messages": [HumanMessage(content=query)],
         "query": query,
         "company_id": company_id,
         "selected_tables": [],
@@ -339,13 +361,16 @@ def run_chart_generation(query: str, company_id: int = 1) -> Dict[str, Any]:
     }
     
     try:
-        final_state = app.invoke(initial_state)
+        # Use simple invoke. Logic handles appending messages via reducer.
+        final_state = app.invoke(inputs, config=config)
+        
         return {
             "sql_query": final_state.get("sql_query"),
             "chart_config": final_state.get("chart_config"),
             "results": final_state.get("results"),
-            "error": final_state.get("error")
+            "error": final_state.get("error"),
+            "thread_id": thread_id
         }
     except Exception as e:
         logger.error(f"Error running chart generation: {e}")
-        return {"error": str(e)}
+        return {"error": str(e), "thread_id": thread_id}

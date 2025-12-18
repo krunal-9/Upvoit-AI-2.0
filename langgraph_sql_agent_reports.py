@@ -8,6 +8,7 @@ from functools import lru_cache
 from datetime import datetime
 from typing import TypedDict, Annotated, Sequence, List, Dict, Any, Optional, Tuple
 from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph.message import add_messages
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -182,23 +183,22 @@ except Exception as e:
 # DB Connection
 try:
     driver = "ODBC Driver 18 for SQL Server"
-    DB_SERVER = os.getenv("DB_SERVER")
-    DB_DATABASE = os.getenv("DB_DATABASE")
-    DB_UID = os.getenv("DB_UID")
-    DB_PWD = os.getenv("DB_PWD")
-    DB_DRIVER = os.getenv("DB_DRIVER")
+    DB_SERVER = os.getenv("DB_SERVER", "tcp:sql5106.site4now.net,1433")
+    DB_DATABASE = os.getenv("DB_DATABASE", "db_a4a01c_upvoitai")
+    DB_UID = os.getenv("DB_UID", "db_a4a01c_upvoitai_admin")
+    DB_PWD = os.getenv("DB_PWD", "upvoit@123")
+
     odbc_params = (
-        f"DRIVER={{{DB_DRIVER}}};"
+        f"DRIVER={{{driver}}};"
         f"SERVER={DB_SERVER};"
         f"DATABASE={DB_DATABASE};"
         f"UID={DB_UID};"
         f"PWD={DB_PWD};"
         "Encrypt=yes;"
         "TrustServerCertificate=yes;"
-        "Trusted_Connection=yes;"
-        "Connection Timeout=30;"
+        "Connection Timeout=15;"
+        "Login Timeout=15;"
     )
-    
     DATABASE_URI = f"mssql+pyodbc:///?odbc_connect={quote_plus(odbc_params)}"
     engine = create_engine(DATABASE_URI, pool_pre_ping=True)
 except Exception as e:
@@ -304,21 +304,23 @@ def validate_sql_syntax(sql: str) -> Tuple[bool, Optional[str]]:
             errors.append(description)
     
     # Check for DECLARE without usage
-    declare_vars = re.findall(r'DEclare\s+@(\w+)', sql, re.IGNORECASE)
+    # declare_vars = re.findall(r'DEclare\s+@(\w+)', sql, re.IGNORECASE)
     
-    # Check for variable usage without declaration
-    used_vars = re.findall(r'@(\w+)', sql)
-    declared_vars = set(v.upper() for v in declare_vars)
+    # Check for variable usage without declaration - SKIPPED for templates
+    # used_vars = re.findall(r'@(\w+)', sql)
+    # declared_vars = set(v.upper() for v in declare_vars)
     
     # Common system variables to ignore
-    system_vars = {'IDENTITY', 'ROWCOUNT', 'ERROR', 'TRANCOUNT', 'VERSION', 'SPID', 'FETCH_STATUS'}
+    # system_vars = {'IDENTITY', 'ROWCOUNT', 'ERROR', 'TRANCOUNT', 'VERSION', 'SPID', 'FETCH_STATUS'}
     
-    for var in used_vars:
-        if var.upper() in system_vars or var.upper().startswith('@@'):
-            continue
+    # for var in used_vars:
+    #     if var.upper() in system_vars or var.upper().startswith('@@'):
+    #         continue
             
-        if var.upper() not in declared_vars:
-            errors.append(f"Variable @{var} is used but not declared")
+    #     if var.upper() not in declared_vars:
+    #         # errors.append(f"Variable @{var} is used but not declared")
+    pass
+    #         errors.append(f"Variable @{var} is used but not declared")
     
     # Check for incomplete statements
     if sql.strip().endswith('AND') or sql.strip().endswith('OR'):
@@ -360,26 +362,67 @@ def validate_sql_syntax(sql: str) -> Tuple[bool, Optional[str]]:
     return len(errors) == 0, "\n".join(errors) if errors else None
 
 def extract_sql(llm_output: str) -> Tuple[str, Optional[str]]:
+    # Step 1: Extract and remove scratchpad to prevent false positives in tag search
+    # (e.g. "Return code in <sql> tags")
     scratchpad_match = re.search(
         r"<scratchpad>(.*?)</scratchpad>", llm_output, re.DOTALL | re.IGNORECASE
     )
     scratchpad_text = scratchpad_match.group(1).strip() if scratchpad_match else None
     
-    sql_match = re.search(r"<sql>(.*?)</sql>", llm_output, re.DOTALL | re.IGNORECASE)
-    if sql_match:
-        sql = sql_match.group(1).strip()
+    # Remove scratchpad from the text we process for SQL
+    if scratchpad_match:
+        # We replace the whole match with empty string
+        clean_output = llm_output.replace(scratchpad_match.group(0), "").strip()
     else:
-        # Fallback extraction
-        code_blocks = re.findall(r"```(?:sql)?\s*(.*?)\s*```", llm_output, re.DOTALL | re.IGNORECASE)
+        clean_output = llm_output.strip()
+            
+    sql = ""
+    
+    # Method 1: <sql> tags (Case Insensitive)
+    lower_output = clean_output.lower()
+    start_tag = "<sql>"
+    end_tag = "</sql>"
+    
+    start_idx = lower_output.find(start_tag)
+    if start_idx != -1:
+        # Found opening tag
+        content_start = start_idx + len(start_tag)
+        
+        end_idx = lower_output.find(end_tag, content_start)
+        if end_idx != -1:
+            # Found closing tag
+            sql = clean_output[content_start:end_idx]
+        else:
+            # No closing tag, take rest of string
+            sql = clean_output[content_start:]
+    
+    else:
+        # Method 2: Markdown block
+        code_blocks = re.findall(r"```(?:sql)?\s*(.*?)\s*```", clean_output, re.DOTALL | re.IGNORECASE)
         if code_blocks:
             sql = "\n".join(block.strip() for block in code_blocks)
+        
         else:
-            sql = llm_output.strip()
+            # Method 3: Fallback - Raw output
+            # Since we already stripped scratchpad, clean_output is just the SQL + potentially conversational text
+            sql = clean_output
+            
+            # If the user output "tags.\n\nSELECT...", we still have "tags."
+            # We heuristic: find start of SELECT / WITH / INSERT
+            match = re.search(r"(WITH\s|SELECT\s|INSERT\s|UPDATE\s|DELETE\s|DECLARE\s)", sql, re.IGNORECASE)
+            if match:
+                sql = sql[match.start():]
 
-    # Cleanup
+    # Final Cleanup
+    # Remove any remaining XML tags that might have leaked (e.g. closing tags if malformed)
+    sql = re.sub(r"<[^>]+>", "", sql).strip()
+    
+    # Remove standard comments
     sql = re.sub(r"^\s*--.*?$", "", sql, flags=re.MULTILINE)
     sql = re.sub(r"/\*.*?\*/", "", sql, flags=re.DOTALL)
-    if not sql.endswith(";"):
+    
+    # Ensure it ends with semicolon
+    if sql and not sql.endswith(";"):
         sql += ";"
     
     return sql, scratchpad_text
@@ -398,8 +441,9 @@ Your task is to create a parameterized T-SQL query that serves as a flexible rep
 Follow these steps to generate the best possible query:
 
 1. **UNDERSTAND THE GOAL:**
+   - **PRIORITY:** Focus ONLY on the *latest* user request found in the last message or the `User Query` below.
+   - **IGNORE** previous conversation history if it conflicts with the current request. Do not try to merge multiple unrelated reports.
    - The user wants a report (e.g., "Sales by Customer", "Job Revenue").
-   - The query MUST be dynamic, allowing filtering by Date Range AND any selected column.
 
 2. **ANALYZE THE SCHEMA:**
    - Review the available tables and their columns.
@@ -418,10 +462,9 @@ Follow these steps to generate the best possible query:
      - Prefer descriptive text columns over numeric codes.
      - Limit output to the most relevant 6-8 columns.
 
-4. **MANDATORY FILTERING LOGIC (N+2 FILTERS):**
-   - **Date Range:** You MUST include `@FromDate` and `@ToDate` filters on the primary date column (e.g., JobDate, InvoiceDate).
-   - **Column Filters:** For EVERY column in your `SELECT` clause, you MUST add an optional filter in the `WHERE` clause.
-   - **Pattern:** `AND (@ParamName IS NULL OR Table.Column = @ParamName)`
+4. **FILTERING LOGIC:**
+   - **Date Range:** You MUST filter the primary date column using T-SQL functions (like `GETDATE()`). Do NOT use `@FromDate` or `@ToDate` unless explicitly asked.
+   - **NO DYNAMIC FILTERS:** Do NOT add optional filters for every column. Only add filters that are explicitly requested by the user.
 
 5. **QUERY STRUCTURE:**
    ```sql
@@ -432,26 +475,23 @@ Follow these steps to generate the best possible query:
    FROM Table t
    ...
    WHERE
-       t.CompanyId = 1 -- Multi-tenancy
-       AND (t.IsDeleted = 0 OR t.IsDeleted IS NULL) -- Soft delete
-       -- MANDATORY DATE FILTER
-       AND t.DateColumn BETWEEN @FromDate AND @ToDate
-       -- DYNAMIC COLUMN FILTERS (One for EACH selected column)
-       AND (@FriendlyName1 IS NULL OR t.Column1 = @FriendlyName1)
-       AND (@FriendlyName2 IS NULL OR t.Column2 = @FriendlyName2)
-       ...
+       t.CompanyId = 1
+       AND (t.IsDeleted = 0 OR t.IsDeleted IS NULL)
+       -- DATE FILTER (Self-contained)
+       AND t.DateColumn BETWEEN DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0) AND EOMONTH(GETDATE())
    ```
 
 6. **CRITICAL RULES:**
    - **DO NOT DECLARE VARIABLES:** The frontend/API will handle declarations. Your output should START with `SELECT`.
-   - **Parameter Names:** Use `@` + the alias name (or column name if no alias) for parameters.
+   - **NO PARAMETERS:** You must NOT use any `@Params` (like `@FromDate`, `@Status`, `@JobNumber`). All logic must be hardcoded or self-contained in the SQL.
+     - **Instead of `@FromDate`**, use: `DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0)` (Start of current month).
+     - **Instead of `@ToDate`**, use: `EOMONTH(GETDATE())` (End of current month).
    - **Multi-Tenancy:** ALWAYS filter by `CompanyId = {company_id}`.
    - **Soft Deletes:** ALWAYS filter `IsDeleted = 0`.
    - **Recurring Jobs (CRITICAL):** When querying recurring jobs (e.g., Visits, Schedules), the 'Start Time' and 'End Time' in the database might be the *series* start/end. You MUST construct the actual instance datetime using the `VisitDate` (or equivalent) combined with the time component of the start/end columns.
      - Example: `DATEADD(day, DATEDIFF(day, '19000101', VisitDate), CAST(StartTime AS DATETIME))`
      - Use this computed date for the SELECT clause AND the `@FromDate/@ToDate` filter.
    - **No Technical Columns:** ABSOLUTELY NO technical/ID columns in SELECT unless explicitly requested.
-   - **Joins:** Include proper JOIN conditions between tables.
    - **ENUM/LOOKUP COLUMNS (CRITICAL):** Check the schema description for any column that defines a mapping (e.g., "1=Created, 2=Scheduled").
      - **FILTERING:** Use the **INTEGER** value (e.g., `JobStatus IN (2, 3)`).
      - **SELECTING:** Select the raw column (e.g., `JobStatus`). The system will automatically map it to the human-readable name.
@@ -477,11 +517,10 @@ Follow these steps to generate the best possible query:
 DATABASE SCHEMA:
 {schema}
 
-PREVIOUS ERRORS:
 {error_history}
 """,
             ),
-            ("human", "{user_query}"),
+            MessagesPlaceholder(variable_name="messages"),
         ]
     )
 
@@ -499,6 +538,8 @@ class AgentState(TypedDict):
     description_a: str
     last_scratchpad: Optional[str]
     error_history: List[str]
+    execution_results: List[Dict[str, Any]]
+    columns: List[str]
 
 # Node 1: Table Selector (Same as Chat Agent)
 def table_selector(state: AgentState) -> AgentState:
@@ -587,14 +628,20 @@ def query_generator(state: AgentState) -> AgentState:
     chain = prompt_template | smart_llm | StrOutputParser()
 
     try:
+        messages = state.get("messages", [HumanMessage(content=state["user_query"])])
+        
         response = chain.invoke(
             {
+                "messages": messages,
                 "schema": json.dumps(table_schemas, indent=2),
                 "user_query": state["user_query"],
                 "error_history": formatted_error_history,
                 "company_id": state["company_id"],
             }
         )
+        
+        log_agent_step("QueryGenerator", "Raw LLM Response", {"response": response, "length": len(response)})
+        
         generated_query, scratchpad = extract_sql(response)
         
         # Table Name Correction
@@ -625,8 +672,9 @@ def query_generator(state: AgentState) -> AgentState:
         if not is_valid:
             return {
                 **state,
-                "error": f"SQL syntax validation failed: {validation_error}",
-                "iteration_count": iteration,
+                "generated_query": generated_query, # Persist for debugging
+                "error": f"SQL validation failed: {validation_error}",
+                "iteration_count": iteration + 1,
             }
 
         return {
@@ -638,10 +686,14 @@ def query_generator(state: AgentState) -> AgentState:
             "last_scratchpad": scratchpad,
         }
     except Exception as e:
-        return {**state, "error": str(e)}
+        return {**state, "error": str(e), "iteration_count": iteration + 1}
 
 # Node 3: Report Validator (Executor)
 def query_validator(state: AgentState) -> AgentState:
+    # If there is already an error (e.g., from syntax check), pass it through
+    if state.get("error"):
+        return state
+
     query = state.get("generated_query", "").strip()
     iteration = state.get("iteration_count", 0) + 1
     
@@ -677,18 +729,13 @@ def query_validator(state: AgentState) -> AgentState:
             
     # Inject TOP 5 for validation safety
     # We want to run the query but limit results to avoid performance hit
-    validation_sql = query
-    if "SELECT" in validation_sql.upper():
-        # Handle SELECT DISTINCT
-        if "SELECT DISTINCT" in validation_sql.upper():
-            validation_sql = re.sub(r"SELECT\s+DISTINCT", "SELECT DISTINCT TOP 5", validation_sql, count=1, flags=re.IGNORECASE)
-        else:
-            validation_sql = re.sub(r"SELECT", "SELECT TOP 5", validation_sql, count=1, flags=re.IGNORECASE)
-
-    # Combine declarations with the modified query
-    validation_query = "\n".join(declarations) + "\n" + validation_sql
+    # Instead of fragile regex replacement for TOP 5, use SET ROWCOUNT
     
-    log_agent_step("QueryValidator", "Validating query with dummy variables and TOP 5", {"validation_query": validation_query})
+    # Combine declarations with the modified query
+    # Note: SET ROWCOUNT limits the result set for SELECT statements
+    validation_query = "\n".join(declarations) + "\nSET ROWCOUNT 5;\n" + query + "\nSET ROWCOUNT 0;"
+    
+    log_agent_step("QueryValidator", "Validating query with dummy variables and SET ROWCOUNT", {"validation_query": validation_query})
 
     try:
         with engine.connect() as connection:
@@ -700,8 +747,7 @@ def query_validator(state: AgentState) -> AgentState:
             **state,
             "error": None,
             "iteration_count": iteration,
-            # We return the ORIGINAL query (template), not the validation query
-            "generated_query": query 
+            "generated_query": query # We return the ORIGINAL query (template), not the validation query
         }
     except Exception as e:
         log_error("QueryValidator", e)
@@ -711,40 +757,107 @@ def query_validator(state: AgentState) -> AgentState:
             "iteration_count": iteration
         }
 
+def query_executor(state: AgentState) -> AgentState:
+    """Executes the generated SQL query."""
+    if state.get("error"):
+        return state
+
+    query = state.get("generated_query")
+    if not query:
+        return {**state, "error": "No query generated"}
+    
+    try:
+        from langgraph_sql_agent_chat import engine
+        from sqlalchemy import text
+        import re
+        
+        # Extract parameters used in SQL
+        params_in_sql = set(re.findall(r'@([a-zA-Z0-9_]+)', query))
+        
+        # Prepare execution params: default to None (NULL)
+        execution_params = {param: None for param in params_in_sql}
+        
+        # Ensure CompanyId is bound if used
+        if 'CompanyId' in params_in_sql and state.get("company_id"):
+             execution_params['CompanyId'] = state["company_id"]
+             
+        with engine.connect() as connection:
+            stmt = text(query)
+            result = connection.execute(stmt, execution_params)
+            
+            columns = list(result.keys())
+            rows = [dict(zip(columns, row)) for row in result.fetchall()]
+            
+            return {**state, "execution_results": rows, "columns": columns}
+
+    except Exception as e:
+        return {**state, "error": f"Execution failed: {str(e)}"}
+
 def should_correct(state: AgentState) -> str:
     if state.get("error"):
         if state.get("iteration_count", 0) >= state.get("max_iterations", 3):
             return END
         return "query_generator"
-    return END
+    return "query_executor"
 
 # Build Graph
 workflow = StateGraph(AgentState)
 workflow.add_node("table_selector", table_selector)
 workflow.add_node("query_generator", query_generator)
 workflow.add_node("query_validator", query_validator)
+workflow.add_node("query_executor", query_executor)
 
 workflow.set_entry_point("table_selector")
 workflow.add_edge("table_selector", "query_generator")
 workflow.add_edge("query_generator", "query_validator")
-workflow.add_conditional_edges("query_validator", should_correct, {"query_generator": "query_generator", END: END})
 
-app = workflow.compile()
+# Use conditional edges properly
+workflow.add_conditional_edges(
+    "query_validator",
+    should_correct,
+    {
+        "query_generator": "query_generator",
+        "query_executor": "query_executor",
+        END: END
+    }
+)
+workflow.add_edge("query_executor", END)
 
-def run_report_generation(query: str, company_id: int = 1) -> Dict[str, Any]:
+app = workflow.compile(checkpointer=MemorySaver())
+
+def run_report_generation(query: str, company_id: int = 1, thread_id: str = None) -> Dict[str, Any]:
+    
+    # Generate a thread ID if one wasn't provided
+    if not thread_id:
+        thread_id = str(uuid.uuid4())
+        
+    config = {"configurable": {"thread_id": thread_id}}
+    
     inputs = {
         "user_query": query,
         "company_id": company_id,
-        "messages": [HumanMessage(content=query)],
+        "selected_tables": [],
+        "table_schemas": {},
+        "generated_query": "",
+        "error": None,
+        "iteration_count": 0,
         "max_iterations": 3,
+        "description_a": DESCRIPTION_A,
+        "messages": [HumanMessage(content=query)],
+        "execution_results": [],
+        "columns": []
     }
     
     try:
-        result = app.invoke(inputs)
+        # Use simple invoke. Logic handles appending messages via reducer.
+        result = app.invoke(inputs, config=config)
         return {
             "sql_query": result.get("generated_query"),
             "error": result.get("error"),
-            "scratchpad": result.get("last_scratchpad")
+            "scratchpad": result.get("last_scratchpad") or (result['messages'][-1].content if result.get('messages') else ""),
+            "thread_id": thread_id,
+            "data": result.get("execution_results"),
+            "columns": result.get("columns")
         }
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": str(e), "thread_id": thread_id}

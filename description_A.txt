@@ -67,9 +67,9 @@ Primary Key: CompanyID
 Foreign Keys: Timezone->Timezone(Id),IndustryId->Industry(Id)
 
 # Users
-Description: The Users table stores information about all individuals who interact with the system, including employees, administrators, and contractors. Each user is associated with a record in the Company table. The table includes fields for personal information (name, email, phone, address) and login details (email, password).
+Description: The Users table stores information about all individuals who interact with the system, including employees, administrators, and contractors. The table includes fields for personal information (name, email, phone, address) and login details (email, password).
 Primary Key: UserID
-Foreign Keys: CompanyID->Companies(CompanyID)
+Foreign Keys: 
 
 # companyUsers
 Description: The CompanyUsers table defines the relationship between companies and users, indicating which employees, administrators, or contractors belong to each company.
@@ -398,20 +398,12 @@ Foreign Keys: CompanyId -> Companies(CompanyID),CustomFieldId -> CustomField(Cus
 Description: The General_Config table stores company-level general settings which include whether contact persons can log in, how job titles are generated (auto or manual), and support for custom job title naming
 Primary Key: GeneralConfigId
 
-# Invoice_Config
+# InvoiceConfig
 Description: The InvoiceConfig table stores company-specific invoice settings that determine how invoice number generating, billing, overtime rules, QuickBooks mappings, PDF formatting, and automated email behaviors function
-Primary Key: Id
-
-# Job_Config
-Description: The JobConfig Table stores job-related configuration settings for each company, such as GPS tracking, job numbering, checklist options, clock-in rules, pre-job timesheet/expense permissions, technician assignment settings, and job email templates
 Primary Key: Id
 
 # ModuleType
 Description: The ModuleType table includes all the available modules like - Dashboard,Request,Quote,Job,Invoices etc
-Primary Key: Id
-
-# OperationType
-Description: The Operation Type Table includes the operation performed system wide such as creating, updating, deleting, completing, or assigning records 
 Primary Key: Id
 
 # PaymentInvoiceRefrence
@@ -426,14 +418,6 @@ Primary Key: OtherEarningsId
 Description: The PayrollConfig table stores all payroll-related settings like how overtime, job dates, rounding rules, payroll periods, allowances, and break-time logic are applied during payroll generation.
 Primary Key: Id
 
-# QuoteConfig
-Description: The QuoteConfig table stores the notes and email templates company wise
-Primary Key: Id
-
-# RequestConfig
-Description: The RequestConfig table stores customizable success and error messages that a company wants to display when handling requests 
-Primary Key: RequestConfigId
-
 # RequestDetails
 Description: The RequestDetails table stores detailed information related to a customer request, including service descriptions, assessment dates/times, scheduling preferences
 Primary Key: Id
@@ -443,18 +427,3 @@ ForeignKey: RequestId -> Request(Id) , CompanyId -> Companies(CompanyID)
 Description: The Subcontactor table stores the information about Subcontractors
 Primary Key: SubContractorId
 Foreign Keys: CompanyId -> Companies(CompanyID),CountryId -> Countries(CountryID)
-
-# CustomForm
-Description: The CustomForm Table stores the information about the customized forms created
-Primary Key: Id
-Foreign Keys: CompanyId->Companies(CompanyID)
-
-# CustomFormAttachment
-Description: Stores attachments related to custom forms
-Primary Key: ID
-Foreign Keys: CompanyID->Companies(CompanyID)
-
-# CustomFormResponse
-Description:Stores responses submitted for custom forms in JSON format
-Primary Key: Id
-Foreign Keys: CompanyID->Companies(CompanyID)

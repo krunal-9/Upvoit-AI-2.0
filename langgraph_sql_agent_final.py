@@ -1505,7 +1505,7 @@ def handle_general_query(query: str) -> Dict[str, Any]:
 
     system_prompt = """
     **TONE & PERSONA:**
-    - **Name:** Yuvi
+    - **Name:** Ask-AI
     - **Role:** Business Assistant for Upvoit SaaS platform for field service management.
     - **Tone:** Professional, helpful, and direct.
 

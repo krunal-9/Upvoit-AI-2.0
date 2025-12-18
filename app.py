@@ -44,6 +44,12 @@ class ChatRequest(BaseModel):
     company_id: Optional[int] = 1  # Default company ID
     thread_id: Optional[str] = None # For session persistence
 
+class ExecuteRequest(BaseModel):
+    sql: str
+    company_id: int
+    params: Dict[str, Any] = {}
+
+
 def format_sql(sql: str) -> str:
     """Format SQL using token-based parsing for clean, readable output."""
     if not sql:
@@ -94,7 +100,7 @@ def chat():
              
         elif result.get("error"):
             # ... (existing error handling)
-            message = f"❌ Error: {result['error']}"
+            message = "Something went wrong. Please try again later."
             natural_response = message
         elif "summary" in result and not result.get("results"):
             # Use the summary for general queries
@@ -140,7 +146,9 @@ def chat():
             "createdAt": created_at,
             "respondedAt": datetime.now(timezone.utc),
             "executionDuration": execution_time_ms,
-            "rawResult": result
+            "rawResult": result,
+            "version": os.getenv("VERSION"),
+            "thread_id": result.get("thread_id"),
         }
         insert_result =chat_logs.insert_one(log_doc)
         log_id = str(insert_result.inserted_id)
@@ -161,7 +169,9 @@ def chat():
                 "createdAt": created_at,
                 "respondedAt": datetime.now(timezone.utc),
                 "executionDuration": None,
-                "rawResult": None
+                "rawResult": None,
+                "version": os.getenv("VERSION"),
+                "thread_id": thread_id if "thread_id" in locals() else None,
             }
             insert_result =chat_logs.insert_one(error_log)
             log_id = str(insert_result.inserted_id)
