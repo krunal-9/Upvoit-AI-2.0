@@ -697,11 +697,13 @@ FINANCIAL CALCULATION RULES (CRITICAL):
    - **Line Items:** Use `JobDetails` table.
    - **Labor Cost:** Use `Timesheet` table (NOT invoiceLaborCost).
    - **Expenses:** Use `expenses` table (NOT invoiceExpenseCost).
+   - Profit and Loss Calculation: Always calculated without tax.
    
 2. **INVOICE CONTEXT** (Querying Billed Amounts, Invoice Totals):
    - **Line Items:** Use `InvoiceDetails` table.
    - **Labor Billed:** Use `invoiceLaborCost` table.
    - **Expenses Billed:** Use `invoiceExpenseCost` table.
+   - Profit and Loss Calculation: Always calculated with tax.
    
 3. **NEVER MIX CONTEXTS:** Do not join `Invoice` tables when asking for `Job` costs, and vice versa, unless explicitly comparing them.
 

@@ -1,29 +1,37 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify,abort
 from flask_cors import CORS
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
 import json
 import os
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from langgraph_sql_agent_chat import run_conversational_query, HumanMessage, AIMessage
+from langgraph_sql_agent_chat import run_conversational_query, HumanMessage, AIMessage
+from langgraph_sql_agent_reports import run_report_generation
 import sqlparse
 from sqlparse import tokens as T
 from auth import token_required
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 import time
-from dateutil import parser
+from langgraph_sql_agent_charts import run_chart_generation
+from decimal import Decimal
+from bson.decimal128 import Decimal128
 
 mongo_uri = os.getenv("MONGO_URI")
 mongo_db = os.getenv("MONGO_DB")
-mongo_collection = os.getenv("MONGO_COLLECTION")
+mongo_chat_collection = os.getenv("MONGO_CHAT_COLLECTION")
+mongo_report_collection = os.getenv("MONGO_REPORT_COLLECTION")
+mongo_dashboard_collection = os.getenv("MONGO_DASHBOARD_COLLECTION")
 cors_origins = os.getenv("CORS_ORIGINS", "")
 cors_origins_list = [origin.strip() for origin in cors_origins.split(",") if origin.strip()]
 
 client = MongoClient(mongo_uri)
 db = client[mongo_db]
-chat_logs = db[mongo_collection]
+chat_logs = db[mongo_chat_collection]
+report_logs = db[mongo_report_collection]
+dashboard_logs = db[mongo_dashboard_collection]
 
 
 app = Flask(__name__)
@@ -37,18 +45,12 @@ class ChatMessage(BaseModel):
     role: str  # 'user' or 'assistant'
     timestamp: str = ""
 
-class ChatRequest(BaseModel):
+class AIRequest(BaseModel):
     message: str
     #max_iterations: Optional[int] = 3
     #chat_history: List[Dict[str, str]] = []
     company_id: Optional[int] = 1  # Default company ID
     thread_id: Optional[str] = None # For session persistence
-
-class ExecuteRequest(BaseModel):
-    sql: str
-    company_id: int
-    params: Dict[str, Any] = {}
-
 
 def format_sql(sql: str) -> str:
     """Format SQL using token-based parsing for clean, readable output."""
@@ -75,11 +77,12 @@ def chat():
     created_at = datetime.now(timezone.utc)
     try:
         try:
-            chat_request = ChatRequest(**request.get_json())
+            chat_request = AIRequest(**request.get_json())
         except Exception as e:
             return jsonify({"error": "Invalid request", "details": str(e)}), 400
             
         user_info = request.user
+
         company_id = str(user_info.get("companyId")) if user_info.get("companyId") else None
         user_id = str(user_info.get("userId")) if user_info.get("userId") else None
 
@@ -97,7 +100,6 @@ def chat():
              # It's a question from the bot
              message = result["natural_response"]
              natural_response = message
-             
         elif result.get("error"):
             # ... (existing error handling)
             message = "Something went wrong. Please try again later."
@@ -117,14 +119,12 @@ def chat():
             else:
                 message = natural_response + "\n\n" + json.dumps(result["results"], default=str)
 
-
         formatted_sql = format_sql(result.get("sql_query", ""))
 
         response = {
             "message": message,
             "natural_response": natural_response,
             "summary_text": result.get("summary_text", natural_response),
-            "sql": formatted_sql,
             "error": result.get("error"),
             "company_id": company_id,
             "thread_id": result.get("thread_id"),
@@ -329,3 +329,265 @@ def update_rating():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+
+@app.route("/api/charts", methods=["POST"])
+@token_required
+def charts_endpoint():
+    start_time = time.time()   # ⏱ Start timing
+    created_at = datetime.now(timezone.utc)
+    try:
+        try:
+            chart_request = AIRequest(**request.get_json())
+        except Exception as e:
+            return jsonify({"error": "Invalid request", "details": str(e)}), 400
+        
+        user_info = request.user
+        company_id = str(user_info.get("companyId")) if user_info.get("companyId") else None
+        user_id = str(user_info.get("userId")) if user_info.get("userId") else None
+
+        query = chart_request.message
+
+        if not any(tag in query.lower() for tag in ['companyid', 'company id']):
+            query = f"[CompanyID: {company_id}] {query}"
+
+        # Process the message through the chart agent
+        result = run_chart_generation(
+            query=query, 
+            company_id=company_id,
+            thread_id=chart_request.thread_id
+        )
+        
+        # Format SQL for display
+        formatted_sql = format_sql(result.get("sql_query", ""))
+        
+        # Create response
+        response = {
+            "error": result.get("error"),
+            "chart_config": result.get("chart_config"),
+            "results": result.get("results"),
+            "company_id": company_id,
+            "thread_id": result.get("thread_id")
+        }
+
+        execution_time_ms = round((time.time() - start_time) * 1000, 2)
+
+        # 📌 Store log in MongoDB
+        log_doc = {
+            "companyId": company_id,
+            "userId" : user_id,
+            "question": chart_request.message,
+            "sqlQuery": formatted_sql,
+            "error": result.get("error"),
+            "createdAt": created_at,
+            "respondedAt": datetime.now(timezone.utc),
+            "executionDuration": execution_time_ms,
+            "rawResult": result,
+            "version": os.getenv("VERSION"),
+            "thread_id": result.get("thread_id"),
+        }
+        safe_doc = make_mongo_safe(log_doc)
+        insert_result =report_logs.insert_one(safe_doc)
+        log_id = str(insert_result.inserted_id)
+        response["questionId"] = log_id
+         # Return response
+        return jsonify(content=response)
+
+    except Exception as e:
+        try:
+            error_log = {
+                "companyId": company_id if "company_id" in locals() else None,
+                "userId": user_id if "user_id" in locals() else None,
+                "question": chart_request.message if "chart_request" in locals() else None,
+                "error": str(e),
+                "createdAt": created_at,
+                "respondedAt": datetime.now(timezone.utc),
+                "executionDuration": 0,
+                "rawResult": None,
+                "version": os.getenv("VERSION"),
+            }
+            insert_result =dashboard_logs.insert_one(error_log)
+        except:
+            pass
+        return jsonify({
+            "content": {
+                "natural_response": None,
+                "error": str(e)
+            }
+        }), 500    
+
+
+@app.route("/api/report", methods=["POST"])
+@token_required
+def report():
+    start_time = time.time()   # ⏱ Start timing
+    created_at = datetime.now(timezone.utc)
+    try:
+        try:
+            report_request = AIRequest(**request.get_json())
+        except Exception as e:
+            return jsonify({"error": "Invalid request", "details": str(e)}), 400
+        
+        user_info = request.user
+        company_id = str(user_info.get("companyId")) if user_info.get("companyId") else None
+        user_id = str(user_info.get("userId")) if user_info.get("userId") else None
+
+        query = report_request.message
+
+        if not any(tag in query.lower() for tag in ['companyid', 'company id']):
+            query = f"[CompanyID: {company_id}] {query}"
+
+        # Process the message through the report agent
+        result = run_report_generation(
+            query=query, 
+            company_id=company_id,
+            thread_id=report_request.thread_id
+        )
+        
+        # Format SQL for display
+        formatted_sql = format_sql(result.get("sql_query", ""))
+                
+        data = []
+        columns = []
+        execution_error = None
+
+        if result.get("sql_query"):
+             # Execution is now handled within run_report_generation if successful
+             data = result.get("data", [])
+             columns = result.get("columns", [])
+             execution_error = result.get("error") if not data and result.get("error") else None
+             
+             
+        # Create response
+        response = {
+            "error": execution_error or result.get("error"),
+            "company_id": company_id,
+            "thread_id": result.get("thread_id"),
+            "data": data
+        }
+        
+        execution_time_ms = round((time.time() - start_time) * 1000, 2)
+        print(data)
+        # 📌 Store log in MongoDB
+        log_doc = {
+            "companyId": company_id,
+            "userId" : user_id,
+            "question": report_request.message,
+            "sqlQuery": formatted_sql,
+            "data": data,
+            "columns": columns,
+            "scratchpad": result.get("scratchpad"),
+            "error": result.get("error"),
+            "createdAt": created_at,
+            "respondedAt": datetime.now(timezone.utc),
+            "executionDuration": execution_time_ms,
+            "rawResult": result,
+            "version": os.getenv("VERSION"),
+            "thread_id": result.get("thread_id"),
+        }
+        safe_doc = make_mongo_safe(log_doc)
+        insert_result =report_logs.insert_one(safe_doc)
+        log_id = str(insert_result.inserted_id)
+        response["questionId"] = log_id
+        return jsonify(response)
+        
+    except Exception as e:
+        try:
+            error_log = {
+                "companyId": company_id if "company_id" in locals() else None,
+                "userId": user_id if "user_id" in locals() else None,
+                "question": report_request.message if "report_request" in locals() else None,
+                "error": str(e),
+                "createdAt": created_at,
+                "respondedAt": datetime.now(timezone.utc),
+                "executionDuration": 0,
+                "rawResult": None,
+                "version": os.getenv("VERSION"),
+            }
+            insert_result =dashboard_logs.insert_one(error_log)
+        except:
+            pass
+        return jsonify({
+            "content": {
+                "natural_response": None,
+                "error": str(e)
+            }
+        }), 500    
+
+
+@app.route("/api/reports/execute", methods=["POST"])
+@token_required
+def execute_report():
+    try:
+        try:
+            request = ExecuteRequest(**request.get_json())
+        except Exception as e:
+            return jsonify({"error": "Invalid request", "details": str(e)}), 400
+        
+        # Validate that the query is a SELECT statement (basic safety)
+        if not request.sql.strip().upper().startswith("SELECT") and not request.sql.strip().upper().startswith("WITH"):
+            abort(400, description="Only SELECT statements are allowed for execution.")
+             
+        from langgraph_sql_agent_chat import engine
+        from sqlalchemy import text
+        import re
+        
+        with engine.connect() as connection:
+            # Extract parameters used in SQL
+            params_in_sql = set(re.findall(r'@([a-zA-Z0-9_]+)', request.sql))
+            
+            # Prepare execution params: default to None if not provided
+            execution_params = {param: None for param in params_in_sql}
+            
+            # Update with provided params
+            if request.params:
+                execution_params.update(request.params)
+
+            # Use SQLAlchemy text() and bindparams
+            stmt = text(request.sql)
+            result = connection.execute(stmt, execution_params)
+            
+            # Serialize rows
+            columns = result.keys()
+            rows = [dict(zip(columns, row)) for row in result.fetchall()]
+            
+            # Helper to serialize decimals/dates
+            serialized_rows = json.loads(json.dumps(rows, default=serialize_data))
+            
+            response = {
+                "data": serialized_rows,
+                "columns": list(columns)
+}
+            return jsonify(content=response)
+
+            
+    except Exception as e:
+        logging.exception("Error executing report")
+        return jsonify({
+            "content": {
+                "error": str(e)
+            }
+        }), 500   
+
+def serialize_data(obj):
+    """Recursively convert Decimal to float and datetime to str for JSON serialization."""
+    if isinstance(obj, Decimal):
+        return float(obj)
+    elif isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    elif isinstance(obj, dict):
+        return {k: serialize_data(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [serialize_data(i) for i in obj]
+    return obj
+
+def make_mongo_safe(obj):
+    if isinstance(obj, dict):
+        return {k: make_mongo_safe(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [make_mongo_safe(v) for v in obj]
+    if isinstance(obj, Decimal):
+        return Decimal128(obj)
+    if isinstance(obj, datetime):
+        return obj   # pymongo handles datetime automatically
+    return obj

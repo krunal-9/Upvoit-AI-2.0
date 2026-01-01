@@ -496,7 +496,7 @@
         ]
     },
     "companyUsers": {
-        "description": "The CompanyUsers table defines the relationship between companies and users, indicating which employees, administrators, or contractors belong to each company. This table is especially useful in systems that support multiple companies and users, as it enables efficient management and tracking of users within their respective organizations. Additionally, the CompanyUsers table stores user-specific details per company, such as work information and rate details used for payroll and invoicing purposes.",
+        "description": "The CompanyUsers table defines the relationship between companies and users. \n\nIMPORTANT - USER ROLE LOGIC:\nA user can have MULTIPLE roles simultaneously. You MUST generate the 'Role' column by CONCATENATING all matching conditions below (e.g., 'Admin, Client Contact Person'). Do NOT use a single CASE statement that stops at the first match.\n\nConcatenate these terms (comma-separated):\n1. 'Admin' IF Administrator = 1\n2. 'Client' IF PermissionLevel = 6\n3. 'Sub Contractor' IF PermissionLevel = 7 AND IsContractor = 1\n4. 'Client Contact Person' IF PermissionLevel = 8\n5. 'Sub Contractor User' IF Administrator = 0 AND ContractorId IS NOT NULL AND ContractorId != 0\n\nFallback:\nIf the resulting concatenated string is empty (i.e., NO conditions matched), then the Role is 'User'.",
         "columns": [
             {
                 "Column Name": "CompanyId",
@@ -922,12 +922,6 @@
                 "Data Type": "nvarchar",
                 "constraints": "",
                 "description": "Map location ID (for integration with mapping services like Google Maps)."
-            },
-            {
-                "Column Name": "DisplayName",
-                "Data Type": "nvarchar",
-                "constraints": "",
-                "description": "The DisplayName field is used specifically for QuickBooks integration, since QuickBooks customers are identified only by a single display name (instead of separate first name, last name, or company name)."
             }
         ]
     },
@@ -2330,7 +2324,7 @@
                 "Column Name": "TransactionId",
                 "Data Type": "int",
                 "constraints": "FK",
-                "description": "This column stores the JobId when a product or service is moved from a job. It's refrenced by table called \"Jobs\" column \"ID\". Use this connection to build join to retrieve data based on the company"
+                "description": "This column stores the JobId when a product or service is moved from a job. It's refrenced by table called \"Job\" column \"ID\". Use this connection to build join to retrieve data based on the company"
             },
             {
                 "Column Name": "ServicesDescription",
@@ -2449,7 +2443,7 @@
                 "Column Name": "JobId",
                 "Data Type": "int",
                 "constraints": "FK",
-                "description": "References the Jobs table to associate the expense with a specific job. This column refrenced by table \"Jobs\" column named \"ID\". Use this relation to build a join and retrieve data of job"
+                "description": "References the Jobs table to associate the expense with a specific job. This column refrenced by table \"Job\" column named \"ID\". Use this relation to build a join and retrieve data of job"
             },
             {
                 "Column Name": "InvoiceId",
@@ -2748,7 +2742,7 @@
                 "Column Name": "JobId",
                 "Data Type": "int",
                 "constraints": "FK",
-                "description": "References the Jobs table to associate the expense with a specific job. This column refrenced by table \"Jobs\" column named \"ID\". Use this relation to build a join and retrieve data of job"
+                "description": "References the Job table to associate the expense with a specific job. This column refrenced by table \"Jobs\" column named \"ID\". Use this relation to build a join and retrieve data of job"
             },
             {
                 "Column Name": "InvoiceId",
@@ -2837,7 +2831,7 @@
         ]
     },
     "reminder": {
-        "description": "The Reminder table stores scheduled reminders for jobs, invoices, tasks, or other activities within a company. Each record represents a single reminder and includes details about timing, recurrence, recipients, and notification preferences.",
+        "description": "The Reminder table stores scheduled reminders for jobs, invoices, tasks, or other activities within a company. \n\nIMPORTANT - DUPLICATE HANDLING:\nAlways filter by **IsParent = 1**.\n\nIMPORTANT - DATE RANGE:\nWhen IsParent=1, 'ReminderDate' is often the *initial* start date.\nTo find reminders active during a specific period (e.g., 2025), use **StartDate** and **EndDate**:\n(`StartDate` < 'PeriodEndDate' AND (`EndDate` > 'PeriodStartDate' OR `EndDate` IS NULL)).\nDo NOT filter solely by 'ReminderDate'.",
         "columns": [
             {
                 "Column Name": "Id",
@@ -3057,7 +3051,7 @@
         ]
     },
     "request": {
-        "description": "The Request table stores requests submitted by clients. It tracks details such as request type, status, assigned users, and related client information, enabling companies to manage and respond to client requests efficiently. Within the Request module, there is an On-Site Assessment feature, where users can schedule a date and time for the assessment and assign it to a team and technicians.",
+        "description": "The Request table stores requests submitted by clients. It tracks details such as request type, status, assigned users, and related client information, enabling companies to manage and respond to client requests efficiently. Within the Request module, there is an On-Site Assessment feature.\n\nIMPORTANT - ASSESSMENT SCHEDULE:\nFor 'Assessment Date', 'Assessment Time', or any scheduling info, you MUST JOIN with the 'JobSchedule' table (using RequestId). Do NOT use 'AssessmentDate' from this table or 'RequestDetails'—those are just placeholders. The REAL schedule is in 'JobSchedule'.",
         "columns": [
             {
                 "Column Name": "Id",
@@ -3273,113 +3267,6 @@
                 "Data Type": "bit",
                 "constraints": "",
                 "description": "not in used"
-            }
-        ]
-    },
-    "requestDetails": {
-        "description": "The RequestDetails table stores detailed information about a client request, including service description",
-        "columns": [
-            {
-                "Column Name": "Id",
-                "Data Type": "int",
-                "constraints": "PK",
-                "description": "Primary key (unique identifier for each request detail record)."
-            },
-            {
-                "Column Name": "RequestId",
-                "Data Type": "int",
-                "constraints": "FK",
-                "description": "Foreign key referencing Request.Id. links this detail record to a specific request."
-            },
-            {
-                "Column Name": "ServiceDetails",
-                "Data Type": "nvarchar",
-                "constraints": "",
-                "description": "Description or details of the service requested."
-            },
-            {
-                "Column Name": "AssessmentDate",
-                "Data Type": "datetime",
-                "constraints": "",
-                "description": "Date scheduled for the initial assessment or visit."
-            },
-            {
-                "Column Name": "AssessmentDate2",
-                "Data Type": "datetime",
-                "constraints": "",
-                "description": "Optional second date for the initial assessment or visit, if applicable."
-            },
-            {
-                "Column Name": "AssessmentTime",
-                "Data Type": "Varchar",
-                "constraints": "",
-                "description": "Preferred time for the assessment; stored as a string (e.g., \"anytime\", \"morning\", \"afternoon\", \"evening\").\""
-            },
-            {
-                "Column Name": "OnSiteAssessment",
-                "Data Type": "bit",
-                "constraints": "",
-                "description": "Boolean indicating whether the assessment requires on-site presence. if true, scheduling details must be added."
-            },
-            {
-                "Column Name": "IsScheduleLater",
-                "Data Type": "bit",
-                "constraints": "",
-                "description": "Boolean indicating if the assessment scheduling is deferred to a later time."
-            },
-            {
-                "Column Name": "IsAnyTime",
-                "Data Type": "bit",
-                "constraints": "",
-                "description": "Boolean indicating if the client is flexible with the assessment time (available at any time of the day)."
-            },
-            {
-                "Column Name": "CreatedDate",
-                "Data Type": "datetime",
-                "constraints": "",
-                "description": "Date when the request detail added"
-            },
-            {
-                "Column Name": "CreatedBy",
-                "Data Type": "int",
-                "constraints": "",
-                "description": "User who created request details."
-            },
-            {
-                "Column Name": "ModifiedDate",
-                "Data Type": "datetime",
-                "constraints": "",
-                "description": "Date when the request detail last modified."
-            },
-            {
-                "Column Name": "ModifiedBy",
-                "Data Type": "int",
-                "constraints": "",
-                "description": "User who last modifed request details."
-            },
-            {
-                "Column Name": "IsDeleted",
-                "Data Type": "bit",
-                "constraints": "",
-                "description": "Soft delete flag (0 = active, 1 = deleted)."
-            },
-            {
-                "Column Name": "DeletedDate",
-                "Data Type": "datetime",
-                "constraints": "",
-                "description": "Date when request detaild deleted."
-            },
-            {
-                "Column Name": "DeletedBy",
-                "Data Type": "int",
-                "constraints": "",
-                "description": "User who delete the record"
-            },
-            {
-                "Column Name": "CompanyID",
-                "Data Type": "int",
-                "constraints": "FK",
-                "description": "This column stores company id. which helps to retrieve company details or company wise request details."
             }
         ]
     },
@@ -5145,12 +5032,6 @@
                 "description": "Links this job to another related entity (e.g., Invoice)."
             },
             {
-                "Column Name": "TotalCost",
-                "Data Type": "decimal(18,6)",
-                "constraints": "",
-                "description": "Total internal cost of the job."
-            },
-            {
                 "Column Name": "TotalPrice",
                 "Data Type": "decimal(18, 6)",
                 "constraints": "",
@@ -5160,7 +5041,7 @@
                 "Column Name": "SubTotal",
                 "Data Type": "decimal(18, 2)",
                 "constraints": "",
-                "description": "Subtotal before tax/discount."
+                "description": "Subtotal amount used for calculating job profit and loss before applying tax or discounts."
             },
             {
                 "Column Name": "IsScheduleLater",
@@ -5274,7 +5155,7 @@
                 "Column Name": "JobStatus",
                 "Data Type": "int",
                 "constraints": "",
-                "description": "Current job status (1=Created, 2=Scheduled, 3=In Progress, 4=On Hold, 5=Waiting for Parts, 6=Completed, 7=Cancelled)."
+                "description": "Current job status (1=Created, 2=Scheduled, 3=In Progress, 4=On Hold, 5=Waiting for Parts, 6=Completed, 7=Cancelled). Do not show integers, show the status name instead."
             },
             {
                 "Column Name": "IsJobCreated",
@@ -5322,13 +5203,13 @@
                 "Column Name": "LaborTotal",
                 "Data Type": "decimal(18, 2)",
                 "constraints": "",
-                "description": "Total labor cost for the job."
+                "description": "Total labor billing for the job."
             },
             {
                 "Column Name": "ExpenseTotal",
                 "Data Type": "decimal(18, 2)",
                 "constraints": "",
-                "description": "Total expense cost for the job."
+                "description": "Total expense billing for the job."
             },
             {
                 "Column Name": "ProductServiceTotal",
@@ -7163,7 +7044,7 @@
         ]
     },
     "expenses": {
-        "description": "The Expenses table stores detailed information about all job-related and direct business expenses. It is primarily used for financial analysis, including calculating profit margins, tracking billable and non-billable costs, and managing reimbursements or payments. Each record represents a single expense entry linked to clients, companies, accounts, users, or specific jobs.",
+        "description": "The Expenses table stores detailed information about all job-related and direct business expenses. It is primarily used for financial analysis, including calculating profit margins, tracking billable and non-billable costs, and managing reimbursements or payments. Each record represents a single expense entry linked to clients, companies, accounts, users, or specific jobs.\n\nIMPORTANT - REIMBURSABLE DEFINITION:\n- A 'Reimbursable Expense' is defined as a record where **UserId IS NULL**.\n- Do NOT use 'IsBillable' to determine if an expense is reimbursable.",
         "columns": [
             {
                 "Column Name": "Id",
@@ -8512,7 +8393,7 @@
                 "Column Name": "JobStatus",
                 "Data Type": "int",
                 "constraints": "",
-                "description": "Current job status (1=Created, 2=Scheduled, 3=Inprogress, 4=Onhold, 5=Waitingforparts, 6=Completed, 7=Cancelled)."
+                "description": "Current job status (1=Created, 2=Scheduled, 3=Inprogress, 4=Onhold, 5=Waitingforparts, 6=Completed, 7=Cancelled). Do not show integers, show the status name instead."
             },
             {
                 "Column Name": "GracePeriod",
@@ -8864,125 +8745,6 @@
                 "Data Type": "int",
                 "constraints": "",
                 "description": "Amount applied from the payment toward the invoice."
-            }
-        ]
-    },
-    "SubContractor": {
-        "description": "Description for table SubContractor.",
-        "columns": [
-            {
-                "Column Name": "SubContractorId",
-                "Data Type": "int",
-                "constraints": "",
-                "description": "Primary key (unique identifier for each record)."
-            },
-            {
-                "Column Name": "CompanyId",
-                "Data Type": "int",
-                "constraints": "",
-                "description": "Identifier of the company associated with the subcontractor."
-            },
-            {
-                "Column Name": "FirstName",
-                "Data Type": "nvarchar",
-                "constraints": "",
-                "description": "Subcontractor’s first name."
-            },
-            {
-                "Column Name": "LastName",
-                "Data Type": "nvarchar",
-                "constraints": "",
-                "description": "Subcontractor’s last name."
-            },
-            {
-                "Column Name": "MobileNo",
-                "Data Type": "nvarchar",
-                "constraints": "",
-                "description": "Subcontractactor’s mobile phone number."
-            },
-            {
-                "Column Name": "Email",
-                "Data Type": "nvarchar",
-                "constraints": "",
-                "description": "Subcontractor’s email address."
-            },
-            {
-                "Column Name": "Street1",
-                "Data Type": "nvarchar",
-                "constraints": "",
-                "description": "Primary street address line."
-            },
-            {
-                "Column Name": "Street2",
-                "Data Type": "nvarchar",
-                "constraints": "",
-                "description": "Secondary street address line (optional)."
-            },
-            {
-                "Column Name": "City",
-                "Data Type": "nvarchar",
-                "constraints": "",
-                "description": "City of the subcontractor’s address."
-            },
-            {
-                "Column Name": "State",
-                "Data Type": "nvarchar",
-                "constraints": "",
-                "description": "State or region of the subcontractor’s address."
-            },
-            {
-                "Column Name": "Zipcode",
-                "Data Type": "int",
-                "constraints": "",
-                "description": "Postal or ZIP code."
-            },
-            {
-                "Column Name": "CountryId",
-                "Data Type": "int",
-                "constraints": "",
-                "description": "Identifier of the subcontractor’s country."
-            },
-            {
-                "Column Name": "IsDeleted",
-                "Data Type": "bit",
-                "constraints": "",
-                "description": "Soft delete flag indicating whether the record is deleted."
-            },
-            {
-                "Column Name": "CreatedDate",
-                "Data Type": "datetime",
-                "constraints": "",
-                "description": "Timestamp when the record was created."
-            },
-            {
-                "Column Name": "CreatedBy",
-                "Data Type": "int",
-                "constraints": "",
-                "description": "Identifier of the user/system who created the record."
-            },
-            {
-                "Column Name": "ModifiedDate",
-                "Data Type": "datetime",
-                "constraints": "",
-                "description": "Timestamp when the record was last modified."
-            },
-            {
-                "Column Name": "ModifiedBy",
-                "Data Type": "int",
-                "constraints": "",
-                "description": "Identifier of the user/system who modified the record."
-            },
-            {
-                "Column Name": "DeletedDate",
-                "Data Type": "datetime",
-                "constraints": "",
-                "description": "Timestamp when the record was deleted."
-            },
-            {
-                "Column Name": "DeletedBy",
-                "Data Type": "int",
-                "constraints": "",
-                "description": "Identifier of the user/system who deleted the record."
             }
         ]
     }

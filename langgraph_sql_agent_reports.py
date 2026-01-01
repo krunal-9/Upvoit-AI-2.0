@@ -440,10 +440,12 @@ Your task is to create a parameterized T-SQL query that serves as a flexible rep
 
 Follow these steps to generate the best possible query:
 
-1. **UNDERSTAND THE GOAL:**
-   - **PRIORITY:** Focus ONLY on the *latest* user request found in the last message or the `User Query` below.
-   - **IGNORE** previous conversation history if it conflicts with the current request. Do not try to merge multiple unrelated reports.
-   - The user wants a report (e.g., "Sales by Customer", "Job Revenue").
+1. **UNDERSTAND THE GOAL & CONTEXT:**
+   - **LATEST REQUEST IS KING:** Focus on the *latest* user request (e.g., "Add modified date").
+   - **CONTEXTUAL MODIFICATION:** If the user is asking to *modify* an existing report (e.g., "add a column", "filter by X"), you **MUST PRESERVE** the existing query's structure (columns, joins, logic) and ONLY apply the requested changes.
+     - **DO NOT** remove existing columns unless explicitly asked.
+     - **DO NOT** change column aliases unless explicitly asked.
+   - **NEW REPORT:** If the user asks for a completely different report, start fresh.
 
 2. **ANALYZE THE SCHEMA:**
    - Review the available tables and their columns.
@@ -454,7 +456,7 @@ Follow these steps to generate the best possible query:
    - **Distinguish Keys:**
      - **Surrogate Keys:** (e.g., GUIDs, auto-increments, IDs) are for system use. DO NOT include them unless the user explicitly asks for an ID.
      - **Natural Keys:** (e.g., Names, Codes, Titles) are for humans. ALWAYS prefer these over surrogate keys.
-   - **Audit Data:** Columns like `CreatedBy`, `ModifiedDate`, `ConcurrencyStamp` are metadata. Exclude them.
+   - **Audit Data:** Columns like `CreatedBy`, `ModifiedDate`, `ConcurrencyStamp` are metadata. Try not to include them.
    - **User Intent:**
      - If the user asks for "Jobs", they want the *Job Name*, *Date*, and *Status*. They do NOT want the `JobId` or `CompanyId`.
      - If the user asks for "Clients", they want the *Customer Name*, not the `CustomerId`.
@@ -492,23 +494,47 @@ Follow these steps to generate the best possible query:
      - Example: `DATEADD(day, DATEDIFF(day, '19000101', VisitDate), CAST(StartTime AS DATETIME))`
      - Use this computed date for the SELECT clause AND the `@FromDate/@ToDate` filter.
    - **No Technical Columns:** ABSOLUTELY NO technical/ID columns in SELECT unless explicitly requested.
-   - **ENUM/LOOKUP COLUMNS (CRITICAL):** Check the schema description for any column that defines a mapping (e.g., "1=Created, 2=Scheduled").
-     - **FILTERING:** Use the **INTEGER** value (e.g., `JobStatus IN (2, 3)`).
-     - **SELECTING:** Select the raw column (e.g., `JobStatus`). The system will automatically map it to the human-readable name.
+   - **ENUM/LOOKUP HANDLING (MANDATORY):**
+     - **CHECK THE SCHEMA:** For every column you select, check its `description` in the provided schema.
+     - **DYNAMIC TRANSLATION:** If the description defines a mapping (e.g., "1=Created, 2=Scheduled"), you **MUST** generate a `CASE` statement to translate the integer values into their string representations.
+     - **NO RAW INTEGERS:** Never output the raw integer for a verified Enum column.
+     - **Example:**
+       If schema says `Example: 1=Hello, 2=World`:
+       ```sql
+       CASE [Example]
+           WHEN 1 THEN 'Hello'
+           WHEN 2 THEN 'World'
+           ELSE CAST([Example] AS VARCHAR)
+       END AS [Example]
+       ```
 
 7. **COMMON PITFALLS TO AVOID:**
    - Don't compare string IDs with integer IDs.
    - Don't use string concatenation for multiple IDs.
    - Ensure data types match in WHERE conditions and JOINs.
 
-8. **THINK STEP BY STEP:**
-   1. What information is the user asking for?
-   2. Which tables contain this information?
-   3. How should these tables be joined?
-   4. What is the primary date column for the `@FromDate`/`@ToDate` filter?
-   5. For each selected column, have I added the corresponding dynamic filter?
-   6. Did I handle recurring job dates correctly?
-   7. Did I exclude technical columns?
+8. **THINK STEP BY STEP (GUIDED THINKING):**
+   - **Step 1: Analyze Request Type:** Is this a new report or a modification?
+   - **Step 2: Review Previous Columns and query:**
+     - Previous Columns: {previous_columns}
+     - *Decision:* If modifying, start with these columns.
+   - **Step 3: Modify Columns (CRITICAL):**
+     - **START** with the complete list of Previous Columns.
+     - **ADD** requested columns (e.g., "Modified Date").
+     - **REMOVE** columns **ONLY** if the user explicitly says "remove X" or "drop X".
+     - **FORBIDDEN:** Do NOT add or drop any column silently. If in doubt, keep it.
+     - Translate Enums? (Check schema).
+   - **Step 4: Filters & Logic:**
+     - Apply date filters (Current Month default or requested range).
+     - Apply CompanyId/IsDeleted.
+     - Apply specific filters requested.
+   - **Step 5: Finalize:**
+     - Which tables contain this information?
+     - How should these tables be joined?
+     - For each selected column, have I added the corresponding dynamic filter?
+     - Review the final query.
+     - Ensure it matches the user's intent.
+     - Ensure it's valid SQL.
 
 9. **OUTPUT FORMAT:**
    - Return ONLY the SQL query inside <sql> tags.
@@ -516,7 +542,7 @@ Follow these steps to generate the best possible query:
 
 DATABASE SCHEMA:
 {schema}
-
+Error history (if any):
 {error_history}
 """,
             ),
@@ -629,6 +655,10 @@ def query_generator(state: AgentState) -> AgentState:
 
     try:
         messages = state.get("messages", [HumanMessage(content=state["user_query"])])
+        previous_columns = state.get("columns", [])
+        
+        # Format previous columns for prompt
+        prev_cols_str = ", ".join(previous_columns) if previous_columns else "None"
         
         response = chain.invoke(
             {
@@ -636,6 +666,7 @@ def query_generator(state: AgentState) -> AgentState:
                 "schema": json.dumps(table_schemas, indent=2),
                 "user_query": state["user_query"],
                 "error_history": formatted_error_history,
+                "previous_columns": prev_cols_str,
                 "company_id": state["company_id"],
             }
         )
@@ -670,12 +701,13 @@ def query_generator(state: AgentState) -> AgentState:
         # Validate SQL syntax
         is_valid, validation_error = validate_sql_syntax(generated_query)
         if not is_valid:
-            return {
-                **state,
-                "generated_query": generated_query, # Persist for debugging
-                "error": f"SQL validation failed: {validation_error}",
-                "iteration_count": iteration + 1,
-            }
+            log_agent_step("QueryGenerator", "SQL Validation Warning (proceeding anyway)", {"error": validation_error})
+            # return {
+            #     **state,
+            #     "generated_query": generated_query, # Persist for debugging
+            #     "error": f"SQL validation failed: {validation_error}",
+            #     "iteration_count": iteration + 1,
+            # }
 
         return {
             **state,
@@ -785,9 +817,11 @@ def query_executor(state: AgentState) -> AgentState:
             stmt = text(query)
             result = connection.execute(stmt, execution_params)
             
-            columns = list(result.keys())
-            rows = [dict(zip(columns, row)) for row in result.fetchall()]
+            # columns = list(result.keys())
+            raw_columns = list(result.keys())
+            columns = [c.replace(" ", "") for c in raw_columns]  # e.g. Invoice No -> InvoiceNo
             
+            rows = [dict(zip(columns, row)) for row in result.fetchall()]
             return {**state, "execution_results": rows, "columns": columns}
 
     except Exception as e:
@@ -844,8 +878,6 @@ def run_report_generation(query: str, company_id: int = 1, thread_id: str = None
         "max_iterations": 3,
         "description_a": DESCRIPTION_A,
         "messages": [HumanMessage(content=query)],
-        "execution_results": [],
-        "columns": []
     }
     
     try:
