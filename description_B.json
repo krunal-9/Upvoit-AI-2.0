@@ -4991,7 +4991,7 @@
             },
             {
                 "Column Name": "JobNumber",
-                "Data Type": "int",
+                "Data Type": "nvarchar",
                 "constraints": "",
                 "description": "System-generated or manual unique job number."
             },

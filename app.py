@@ -379,6 +379,7 @@ def charts_endpoint():
             "question": chart_request.message,
             "sqlQuery": formatted_sql,
             "error": result.get("error"),
+            "chart_config": result.get("chart_config"),
             "createdAt": created_at,
             "respondedAt": datetime.now(timezone.utc),
             "executionDuration": execution_time_ms,
@@ -387,7 +388,7 @@ def charts_endpoint():
             "thread_id": result.get("thread_id"),
         }
         safe_doc = make_mongo_safe(log_doc)
-        insert_result =report_logs.insert_one(safe_doc)
+        insert_result =dashboard_logs.insert_one(safe_doc)
         log_id = str(insert_result.inserted_id)
         response["questionId"] = log_id
          # Return response

@@ -67,6 +67,8 @@ Primary Key: CompanyID
 Foreign Keys: Timezone->Timezone(Id),IndustryId->Industry(Id)
 
 # Users
+IMPORTANT - The Users table does NOT contain CompanyId.
+IMPORTANT - All company relationships must be resolved through the CompanyUsers table
 Description: The Users table stores information about all individuals who interact with the system, including employees, administrators, and contractors. The table includes fields for personal information (name, email, phone, address) and login details (email, password).
 Primary Key: UserID
 Foreign Keys: 

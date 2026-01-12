@@ -465,7 +465,7 @@ Follow these steps to generate the best possible query:
      - Limit output to the most relevant 6-8 columns.
 
 4. **FILTERING LOGIC:**
-   - **Date Range:** You MUST filter the primary date column using T-SQL functions (like `GETDATE()`). Do NOT use `@FromDate` or `@ToDate` unless explicitly asked.
+   - **Date Range:** Do NOT apply any date filter unless explicitly requested. If requested, use T-SQL functions (like `GETDATE()`).
    - **NO DYNAMIC FILTERS:** Do NOT add optional filters for every column. Only add filters that are explicitly requested by the user.
 
 5. **QUERY STRUCTURE:**
@@ -479,15 +479,16 @@ Follow these steps to generate the best possible query:
    WHERE
        t.CompanyId = 1
        AND (t.IsDeleted = 0 OR t.IsDeleted IS NULL)
-       -- DATE FILTER (Self-contained)
-       AND t.DateColumn BETWEEN DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0) AND EOMONTH(GETDATE())
+        -- NO DATE FILTER BY DEFAULT. Only add if requested.
+        -- AND t.DateColumn BETWEEN ...
    ```
 
 6. **CRITICAL RULES:**
    - **DO NOT DECLARE VARIABLES:** The frontend/API will handle declarations. Your output should START with `SELECT`.
-   - **NO PARAMETERS:** You must NOT use any `@Params` (like `@FromDate`, `@Status`, `@JobNumber`). All logic must be hardcoded or self-contained in the SQL.
-     - **Instead of `@FromDate`**, use: `DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0)` (Start of current month).
-     - **Instead of `@ToDate`**, use: `EOMONTH(GETDATE())` (End of current month).
+    - **NO PARAMETERS:** You must NOT use any `@Params` (like `@FromDate`, `@Status`, `@JobNumber`). All logic must be hardcoded or self-contained in the SQL.
+      - **If user asks for 'Last Month'**, use: `DATEADD(month, DATEDIFF(month, 0, GETDATE()) - 1, 0)` etc.
+      - **If user asks for 'Current Month'**, use: `DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0)` etc.
+      - **Otherwise, Default**: NO DATE FILTER.
    - **Multi-Tenancy:** ALWAYS filter by `CompanyId = {company_id}`.
    - **Soft Deletes:** ALWAYS filter `IsDeleted = 0`.
    - **Recurring Jobs (CRITICAL):** When querying recurring jobs (e.g., Visits, Schedules), the 'Start Time' and 'End Time' in the database might be the *series* start/end. You MUST construct the actual instance datetime using the `VisitDate` (or equivalent) combined with the time component of the start/end columns.
@@ -525,7 +526,8 @@ Follow these steps to generate the best possible query:
      - **FORBIDDEN:** Do NOT add or drop any column silently. If in doubt, keep it.
      - Translate Enums? (Check schema).
    - **Step 4: Filters & Logic:**
-     - Apply date filters (Current Month default or requested range).
+     - Apply date filters (The requested range or the current month by default, if no range is specified).
+     - Apply date filters (Default: NO DATE FILTER unless explicitly requested).
      - Apply CompanyId/IsDeleted.
      - Apply specific filters requested.
    - **Step 5: Finalize:**
@@ -542,6 +544,7 @@ Follow these steps to generate the best possible query:
 
 DATABASE SCHEMA:
 {schema}
+
 Error history (if any):
 {error_history}
 """,
@@ -572,6 +575,7 @@ def table_selector(state: AgentState) -> AgentState:
     try:
         log_agent_step("TableSelector", "Starting table selection", {"user_query": state["user_query"]})
         description_a = state.get("description_a", DESCRIPTION_A)
+        previous_tables = state.get("selected_tables", [])
         prompt = ChatPromptTemplate.from_messages(
             [
                 (
@@ -579,18 +583,29 @@ def table_selector(state: AgentState) -> AgentState:
                     """You are a database expert. Select relevant tables for the user's report request.
     AVAILABLE TABLES:
     {table_descriptions}
+    
+    PREVIOUSLY SELECTED TABLES: {previous_tables}
+    
     USER QUERY: {user_query}
+    
     INSTRUCTIONS:
-    1. Select tables necessary for the report.
-    2. Return JSON: {{"tables": ["Table1", "Table2"]}}
+    1. If the user is modifying an existing report (e.g. "add/removes column(s)"), you MUST RETAIN the Previously Selected Tables and ADD new ones.
+    2. If the user is starting a fresh request, select only what is needed.
+    3. Return JSON: {{"tables": ["Table1", "Table2"]}}
     """,
                 )
             ]
         )
         chain = prompt | fast_llm | JsonOutputParser()
-        response = chain.invoke({"table_descriptions": description_a, "user_query": state["user_query"]})
+        response = chain.invoke({
+            "table_descriptions": description_a, 
+            "user_query": state["user_query"],
+            "previous_tables": ", ".join(previous_tables)
+        })
         selected_tables = response.get("tables", [])
-        log_agent_step("TableSelector", "Selected tables", {"selected_tables": selected_tables})
+        # Fallback: if additive but empty, keep previous? No, let LLM decide based on prompt.
+        
+        log_agent_step("TableSelector", "Selected tables", {"selected_tables": selected_tables, "previous": previous_tables})
         return {**state, "selected_tables": selected_tables}
     except Exception as e:
         log_error("TableSelector", e)
@@ -701,6 +716,7 @@ def query_generator(state: AgentState) -> AgentState:
         # Validate SQL syntax
         is_valid, validation_error = validate_sql_syntax(generated_query)
         if not is_valid:
+            # changed to warning - let the DB engine decide
             log_agent_step("QueryGenerator", "SQL Validation Warning (proceeding anyway)", {"error": validation_error})
             # return {
             #     **state,
@@ -817,11 +833,13 @@ def query_executor(state: AgentState) -> AgentState:
             stmt = text(query)
             result = connection.execute(stmt, execution_params)
             
-            # columns = list(result.keys())
+            columns = list(result.keys())
+
             raw_columns = list(result.keys())
-            columns = [c.replace(" ", "") for c in raw_columns]  # e.g. Invoice No -> InvoiceNo
+            columns = [c.replace(" ", "") for c in raw_columns]
             
             rows = [dict(zip(columns, row)) for row in result.fetchall()]
+            
             return {**state, "execution_results": rows, "columns": columns}
 
     except Exception as e:
@@ -870,14 +888,13 @@ def run_report_generation(query: str, company_id: int = 1, thread_id: str = None
     inputs = {
         "user_query": query,
         "company_id": company_id,
-        "selected_tables": [],
-        "table_schemas": {},
-        "generated_query": "",
-        "error": None,
-        "iteration_count": 0,
         "max_iterations": 3,
+        "iteration_count": 0, # Reset for new turn
+        "error": None, # Reset for new turn
         "description_a": DESCRIPTION_A,
         "messages": [HumanMessage(content=query)],
+        # Do NOT reset selected_tables, table_schemas, columns, execution_results here.
+        # Let state persistence handle them. Nodes use .get() to handle missing keys on first run.
     }
     
     try:
