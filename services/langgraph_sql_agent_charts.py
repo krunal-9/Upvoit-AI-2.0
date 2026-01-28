@@ -7,6 +7,8 @@ from datetime import datetime
 from typing import TypedDict, Annotated, Sequence, List, Dict, Any, Optional
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.mongodb import MongoDBSaver
+from pymongo import MongoClient
 from langgraph.graph.message import add_messages
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -136,10 +138,25 @@ def get_chart_generation_prompt() -> ChatPromptTemplate:
        - Create a JSON configuration for the chart.
        - `title`: A clear, descriptive title.
        - `type`: 'pie', 'bar', or 'line'.
-       - `labels`: The column name for the X-axis/Category.
-       - `values`: The column name for the Y-axis/Value.
+       - `labels`: The column name for the X-axis / category (string).
+       - `values`: An ARRAY of one or more column names used for Y-axis values.
+        - ALWAYS return `values` as an array.
+        - Even if there is only ONE metric, wrap it in an array.
+         
+    4. **REFINEMENT & FOLLOW-UPS:**
+       - If the user asks to refine the data (e.g., 'top 10', 'add status'), generate a **NEW, COMPLETE** SQL query.
+       - Do NOT try to wrap the previous SQL in a CTE if it risks syntax errors.
+       - Ensure specific attention to BALANCED PARENTHESES.
+       - If using `WITH`, ensure the `CTE` definition is closed before the final `SELECT`.
 
-    4. **OUTPUT FORMAT:**
+    IMPORTANT SCHEMA RULES:
+    - `config.values` MUST ALWAYS be a JSON array.
+    - NEVER return `values` as a string.
+    - Even if there is only ONE metric, wrap it in an array.
+    - Single-metric example: "values": ["TotalRevenue"]
+    - Multi-metric example: "values": ["TotalRevenue", "TotalProfit"]
+         
+    5. **OUTPUT FORMAT:**
        Return **ONLY** a valid JSON object.
        - **DO NOT** include any explanations, reasoning, or conversational text.
        - **DO NOT** use markdown formatting (e.g., no ```json or ```sql blocks).
@@ -254,6 +271,35 @@ def generate_chart_plan(state: ChartState) -> ChartState:
     if state.get("error"):
         return state
         
+    # Helpers
+    def _clean_sql(sql: str) -> str:
+        """Cleans the SQL query by removing markdown and formatting issues."""
+        if not sql:
+            return ""
+        
+        # Remove markdown code blocks
+        sql = re.sub(r'```sql\s*', '', sql, flags=re.IGNORECASE)
+        sql = re.sub(r'```\s*', '', sql)
+        
+        sql = sql.strip()
+        
+        # Remove trailing semicolon
+        if sql.endswith(';'):
+            sql = sql[:-1]
+            
+        # Remove outer parentheses if the whole query is wrapped
+        if sql.startswith('(') and sql.endswith(')'):
+            sql = sql[1:-1].strip()
+            
+        # Fix specific Common Table Expression (CTE) issue where LLM adds trailing parenthesis
+        # Example: WITH ... SELECT ... )
+        # A valid query shouldn't end with ) unless it ends with a subquery, but user query was top level.
+        # We'll use a heuristic: if it ends with ) but count of ( and ) is not equal.
+        if sql.endswith(')') and sql.count('(') < sql.count(')'):
+             sql = sql[:-1].strip()
+             
+        return sql
+
     try:
         prompt = get_chart_generation_prompt()
         chain = prompt | llm | JsonOutputParser()
@@ -294,8 +340,11 @@ def generate_chart_plan(state: ChartState) -> ChartState:
             "schema_details": schema_str
         })
         
+        raw_sql = response.get("sql", "")
+        cleaned_sql = _clean_sql(raw_sql)
+        
         return {
-            "sql_query": response["sql"],
+            "sql_query": cleaned_sql,
             "chart_config": response["config"],
             "error": None
         }
@@ -316,7 +365,18 @@ def execute_chart_query(state: ChartState) -> ChartState:
             # Apply Enum Substitutions
             rows = _apply_enum_substitutions(rows, DESCRIPTION_B)
             
-            return {"results": rows}
+            # Success: Append AI Message to history
+            msg_content = f"I've generated a **{state['chart_config'].get('type', 'chart')} chart** for *'{state['chart_config'].get('title', 'Query')}'*. See the visualization on the right."
+            
+            # Embed data for historical restoration
+            chart_data = {
+                "chart_config": state["chart_config"],
+                "execution_results": rows,
+                "sql_query": state["sql_query"]
+            }
+            ai_msg = AIMessage(content=msg_content, additional_kwargs={"data": chart_data})
+            
+            return {"results": rows, "messages": [ai_msg]}
     except Exception as e:
         logger.error(f"Error executing chart query: {e}")
         return {"error": str(e)}
@@ -334,15 +394,22 @@ workflow.add_edge("planner", "executor")
 workflow.add_edge("executor", END)
 
 # Initialize memory
-checkpointer = MemorySaver()
+try:
+    MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+    client = MongoClient(MONGODB_URI)
+    checkpointer = MongoDBSaver(client, db_name="checkpointing_db", collection_name="checkpoints")
+except Exception as e:
+    logger.warning(f"MongoDB connection failed. Falling back to MemorySaver. Error: {e}")
+    checkpointer = MemorySaver()
+
 app = workflow.compile(checkpointer=checkpointer)
 
-def run_chart_generation(query: str, company_id: int = 1, thread_id: str = None) -> Dict[str, Any]:
+async def run_chart_generation(query: str, company_id: int = 1, thread_id: str = None) -> Dict[str, Any]:
     """Main entry point for chart generation."""
     
     # Generate a thread ID if one wasn't provided
     if not thread_id:
-        thread_id = str(uuid.uuid4())
+        thread_id = f"chart-{uuid.uuid4()}"
         
     config = {"configurable": {"thread_id": thread_id}}
     
@@ -362,7 +429,8 @@ def run_chart_generation(query: str, company_id: int = 1, thread_id: str = None)
     
     try:
         # Use simple invoke. Logic handles appending messages via reducer.
-        final_state = app.invoke(inputs, config=config)
+        # Using ainvoke for async execution which leverages run_in_executor for DB ops
+        final_state = await app.ainvoke(inputs, config=config)
         
         return {
             "sql_query": final_state.get("sql_query"),

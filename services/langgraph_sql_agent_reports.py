@@ -7,17 +7,18 @@ import time
 from functools import lru_cache
 from datetime import datetime
 from typing import TypedDict, Annotated, Sequence, List, Dict, Any, Optional, Tuple
-from langgraph.graph import StateGraph, END
+from langgraph.graph import StateGraph, END, add_messages
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.graph.message import add_messages
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+from langgraph.checkpoint.mongodb import MongoDBSaver
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 from urllib.parse import quote_plus
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
+from pymongo import MongoClient
 
 # Logging configuration
 class ColorFormatter(logging.Formatter):
@@ -44,36 +45,6 @@ class ColorFormatter(logging.Formatter):
         formatter = logging.Formatter(log_fmt, datefmt="%Y-%m-%d %H:%M:%S")
         return formatter.format(record)
 
-def configure_logging():
-    os.makedirs("logs", exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file = os.path.join("logs", f"report_agent_{timestamp}.log")
-
-    root_logger = logging.getLogger()
-    for handler in root_logger.handlers[:]:
-        root_logger.removeHandler(handler)
-
-    file_handler = logging.FileHandler(log_file, encoding="utf-8")
-    file_handler.setLevel(logging.DEBUG)
-    file_formatter = logging.Formatter(
-        "%(asctime)s | %(levelname)-10s | %(name)-15s | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-    file_handler.setFormatter(file_formatter)
-
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(ColorFormatter())
-
-    root_logger.addHandler(file_handler)
-    root_logger.addHandler(console_handler)
-    root_logger.setLevel(logging.DEBUG)
-
-    return log_file
-
-# Initialize logging
-configure_logging()
-logger = logging.getLogger(__name__)
 
 def _format_data(data: Any, indent: int = 2) -> str:
     if isinstance(data, str):
@@ -414,9 +385,6 @@ def extract_sql(llm_output: str) -> Tuple[str, Optional[str]]:
                 sql = sql[match.start():]
 
     # Final Cleanup
-    # Remove any remaining XML tags that might have leaked (e.g. closing tags if malformed)
-    sql = re.sub(r"<[^>]+>", "", sql).strip()
-    
     # Remove standard comments
     sql = re.sub(r"^\s*--.*?$", "", sql, flags=re.MULTILINE)
     sql = re.sub(r"/\*.*?\*/", "", sql, flags=re.DOTALL)
@@ -491,10 +459,17 @@ Follow these steps to generate the best possible query:
       - **Otherwise, Default**: NO DATE FILTER.
    - **Multi-Tenancy:** ALWAYS filter by `CompanyId = {company_id}`.
    - **Soft Deletes:** ALWAYS filter `IsDeleted = 0`.
-   - **Recurring Jobs (CRITICAL):** When querying recurring jobs (e.g., Visits, Schedules), the 'Start Time' and 'End Time' in the database might be the *series* start/end. You MUST construct the actual instance datetime using the `VisitDate` (or equivalent) combined with the time component of the start/end columns.
-     - Example: `DATEADD(day, DATEDIFF(day, '19000101', VisitDate), CAST(StartTime AS DATETIME))`
-     - Use this computed date for the SELECT clause AND the `@FromDate/@ToDate` filter.
-   - **No Technical Columns:** ABSOLUTELY NO technical/ID columns in SELECT unless explicitly requested.
+   - **String Aggregation (CRITICAL):**
+     - **NEVER use `DISTINCT` inside `STRING_AGG`** (e.g. `STRING_AGG(DISTINCT Name, ',')` is INVALID in SQL Server).
+     - **Workaround:** Select distinct values in a subquery/CTE first, then aggregate.
+     - **Example:** `SELECT STRING_AGG(Name, ', ') FROM (SELECT DISTINCT Name FROM T) Sub`
+   - **Date Overflow:**
+     - Avoid `DATEDIFF(MILLISECOND, ...)` or `(SECOND, ...)` on dates that might be far apart (e.g. defaults like '1900-01-01'). Use `DATEDIFF(DAY, ...)` for ranking if possible.
+   - **Recurring Jobs:** Construct instance datetime using `VisitDate` + `StartTime` logic if needed.
+   - **No Technical Columns:** ABSOLUTELY NO technical/ID columns in SELECT unless explicitly requested (e.g. `JobId`).
+   - **Schema Compliance:**
+     - **CHECK EVERY COLUMN:** Do not assume `JobId` exists in `JobSchedule` if the schema doesn't show it. It might be `Id` or `JobScheduleId`.
+     - **Trust the provided Schema JSON strictly.**
    - **ENUM/LOOKUP HANDLING (MANDATORY):**
      - **CHECK THE SCHEMA:** For every column you select, check its `description` in the provided schema.
      - **DYNAMIC TRANSLATION:** If the description defines a mapping (e.g., "1=Created, 2=Scheduled"), you **MUST** generate a `CASE` statement to translate the integer values into their string representations.
@@ -526,7 +501,6 @@ Follow these steps to generate the best possible query:
      - **FORBIDDEN:** Do NOT add or drop any column silently. If in doubt, keep it.
      - Translate Enums? (Check schema).
    - **Step 4: Filters & Logic:**
-     - Apply date filters (The requested range or the current month by default, if no range is specified).
      - Apply date filters (Default: NO DATE FILTER unless explicitly requested).
      - Apply CompanyId/IsDeleted.
      - Apply specific filters requested.
@@ -798,10 +772,23 @@ def query_validator(state: AgentState) -> AgentState:
             "generated_query": query # We return the ORIGINAL query (template), not the validation query
         }
     except Exception as e:
-        log_error("QueryValidator", e)
+        error_str = str(e)
+        log_error("QueryValidator", error_str)
+        
+        # Enhance error message for the Agent
+        feedback_msg = f"SQL Execution Failed: {error_str}"
+        
+        if "Invalid column name" in error_str:
+            feedback_msg += "\n\nHINT: Check the schema. The column you are trying to use does not exist. Do not hallucinate columns."
+        elif "datediff function resulted in an overflow" in error_str:
+            feedback_msg += "\n\nHINT: You are using DATEDIFF on dates that are too far apart (e.g., default 1900-01-01 vs NOW). Use a larger unit like DAY or HOUR, or handle NULLs/Defaults."
+        elif "Incorrect syntax near" in error_str:
+            if "STRING_AGG" in query_upper:
+                feedback_msg += "\n\nHINT: standard STRING_AGG does not support DISTINCT directly in some versions. Use a subquery to distinct first."
+        
         return {
             **state,
-            "error": str(e),
+            "error": feedback_msg,
             "iteration_count": iteration
         }
 
@@ -834,13 +821,20 @@ def query_executor(state: AgentState) -> AgentState:
             result = connection.execute(stmt, execution_params)
             
             columns = list(result.keys())
-
-            raw_columns = list(result.keys())
-            columns = [c.replace(" ", "") for c in raw_columns]
-            
             rows = [dict(zip(columns, row)) for row in result.fetchall()]
             
-            return {**state, "execution_results": rows, "columns": columns}
+            # Append AI Message to history
+            msg_content = f"I've generated a report with **{len(rows)} rows** based on your query."
+            
+            # Embed data for historical restoration
+            report_data = {
+                "columns": columns,
+                "execution_results": rows,
+                "sql_query": state.get("generated_query") or state.get("sql")
+            }
+            ai_msg = AIMessage(content=msg_content, additional_kwargs={"data": report_data})
+
+            return {**state, "execution_results": rows, "columns": columns, "messages": [ai_msg]}
 
     except Exception as e:
         return {**state, "error": f"Execution failed: {str(e)}"}
@@ -875,13 +869,23 @@ workflow.add_conditional_edges(
 )
 workflow.add_edge("query_executor", END)
 
-app = workflow.compile(checkpointer=MemorySaver())
 
-def run_report_generation(query: str, company_id: int = 1, thread_id: str = None) -> Dict[str, Any]:
+# Persistence
+try:
+    MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+    client = MongoClient(MONGODB_URI)
+    checkpointer = MongoDBSaver(client, db_name="checkpointing_db", collection_name="checkpoints")
+except Exception as e:
+    print(f"Warning: MongoDB connection failed. Falling back to MemorySaver. Error: {e}")
+    checkpointer = MemorySaver()
+
+app = workflow.compile(checkpointer=checkpointer)
+
+async def run_report_generation(query: str, company_id: int = 1, thread_id: str = None) -> Dict[str, Any]:
     
     # Generate a thread ID if one wasn't provided
     if not thread_id:
-        thread_id = str(uuid.uuid4())
+        thread_id = f"report-{uuid.uuid4()}"
         
     config = {"configurable": {"thread_id": thread_id}}
     
@@ -899,7 +903,8 @@ def run_report_generation(query: str, company_id: int = 1, thread_id: str = None
     
     try:
         # Use simple invoke. Logic handles appending messages via reducer.
-        result = app.invoke(inputs, config=config)
+        # Using ainvoke for async execution which leverages run_in_executor for DB ops
+        result = await app.ainvoke(inputs, config=config)
         return {
             "sql_query": result.get("generated_query"),
             "error": result.get("error"),
