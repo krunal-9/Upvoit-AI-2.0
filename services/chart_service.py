@@ -120,7 +120,7 @@ def list_chart_logs(
         "createdAt": 1,
         "chart_config": 1,
         "thread_id": 1,
-        "data": 1
+        "result": 1
     }
 
     # ---- Fetch from Mongo ----
@@ -149,7 +149,7 @@ def list_chart_logs(
             r["respondedAt"] = r["respondedAt"].isoformat() + "Z"
 
     return {
-        "results": safe_records,
+        "data": safe_records,
         "pagination": {
             "page": page,
             "limit": limit,

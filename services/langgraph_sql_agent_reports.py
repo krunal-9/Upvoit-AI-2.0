@@ -45,6 +45,36 @@ class ColorFormatter(logging.Formatter):
         formatter = logging.Formatter(log_fmt, datefmt="%Y-%m-%d %H:%M:%S")
         return formatter.format(record)
 
+def configure_logging():
+    os.makedirs("logs", exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = os.path.join("logs", f"report_agent_{timestamp}.log")
+
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
+    file_handler.setLevel(logging.DEBUG)
+    file_formatter = logging.Formatter(
+        "%(asctime)s | %(levelname)-10s | %(name)-15s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    file_handler.setFormatter(file_formatter)
+
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(ColorFormatter())
+
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
+    root_logger.setLevel(logging.DEBUG)
+
+    return log_file
+
+# Initialize logging
+configure_logging()
+logger = logging.getLogger(__name__)
 
 def _format_data(data: Any, indent: int = 2) -> str:
     if isinstance(data, str):
@@ -802,7 +832,7 @@ def query_executor(state: AgentState) -> AgentState:
         return {**state, "error": "No query generated"}
     
     try:
-        from langgraph_sql_agent_chat import engine
+        from services.langgraph_sql_agent_chat import engine
         from sqlalchemy import text
         import re
         
