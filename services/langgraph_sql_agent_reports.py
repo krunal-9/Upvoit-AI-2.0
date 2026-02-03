@@ -7,17 +7,18 @@ import time
 from functools import lru_cache
 from datetime import datetime
 from typing import TypedDict, Annotated, Sequence, List, Dict, Any, Optional, Tuple
-from langgraph.graph import StateGraph, END
+from langgraph.graph import StateGraph, END, add_messages
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.graph.message import add_messages
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+from langgraph.checkpoint.mongodb import MongoDBSaver
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 from urllib.parse import quote_plus
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
+from pymongo import MongoClient
 
 # Logging configuration
 class ColorFormatter(logging.Formatter):
@@ -414,9 +415,6 @@ def extract_sql(llm_output: str) -> Tuple[str, Optional[str]]:
                 sql = sql[match.start():]
 
     # Final Cleanup
-    # Remove any remaining XML tags that might have leaked (e.g. closing tags if malformed)
-    sql = re.sub(r"<[^>]+>", "", sql).strip()
-    
     # Remove standard comments
     sql = re.sub(r"^\s*--.*?$", "", sql, flags=re.MULTILINE)
     sql = re.sub(r"/\*.*?\*/", "", sql, flags=re.DOTALL)
@@ -440,10 +438,12 @@ Your task is to create a parameterized T-SQL query that serves as a flexible rep
 
 Follow these steps to generate the best possible query:
 
-1. **UNDERSTAND THE GOAL:**
-   - **PRIORITY:** Focus ONLY on the *latest* user request found in the last message or the `User Query` below.
-   - **IGNORE** previous conversation history if it conflicts with the current request. Do not try to merge multiple unrelated reports.
-   - The user wants a report (e.g., "Sales by Customer", "Job Revenue").
+1. **UNDERSTAND THE GOAL & CONTEXT:**
+   - **LATEST REQUEST IS KING:** Focus on the *latest* user request (e.g., "Add modified date").
+   - **CONTEXTUAL MODIFICATION:** If the user is asking to *modify* an existing report (e.g., "add a column", "filter by X"), you **MUST PRESERVE** the existing query's structure (columns, joins, logic) and ONLY apply the requested changes.
+     - **DO NOT** remove existing columns unless explicitly asked.
+     - **DO NOT** change column aliases unless explicitly asked.
+   - **NEW REPORT:** If the user asks for a completely different report, start fresh.
 
 2. **ANALYZE THE SCHEMA:**
    - Review the available tables and their columns.
@@ -454,7 +454,7 @@ Follow these steps to generate the best possible query:
    - **Distinguish Keys:**
      - **Surrogate Keys:** (e.g., GUIDs, auto-increments, IDs) are for system use. DO NOT include them unless the user explicitly asks for an ID.
      - **Natural Keys:** (e.g., Names, Codes, Titles) are for humans. ALWAYS prefer these over surrogate keys.
-   - **Audit Data:** Columns like `CreatedBy`, `ModifiedDate`, `ConcurrencyStamp` are metadata. Exclude them.
+   - **Audit Data:** Columns like `CreatedBy`, `ModifiedDate`, `ConcurrencyStamp` are metadata. Try not to include them.
    - **User Intent:**
      - If the user asks for "Jobs", they want the *Job Name*, *Date*, and *Status*. They do NOT want the `JobId` or `CompanyId`.
      - If the user asks for "Clients", they want the *Customer Name*, not the `CustomerId`.
@@ -463,7 +463,7 @@ Follow these steps to generate the best possible query:
      - Limit output to the most relevant 6-8 columns.
 
 4. **FILTERING LOGIC:**
-   - **Date Range:** You MUST filter the primary date column using T-SQL functions (like `GETDATE()`). Do NOT use `@FromDate` or `@ToDate` unless explicitly asked.
+   - **Date Range:** Do NOT apply any date filter unless explicitly requested. If requested, use T-SQL functions (like `GETDATE()`).
    - **NO DYNAMIC FILTERS:** Do NOT add optional filters for every column. Only add filters that are explicitly requested by the user.
 
 5. **QUERY STRUCTURE:**
@@ -477,38 +477,70 @@ Follow these steps to generate the best possible query:
    WHERE
        t.CompanyId = 1
        AND (t.IsDeleted = 0 OR t.IsDeleted IS NULL)
-       -- DATE FILTER (Self-contained)
-       AND t.DateColumn BETWEEN DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0) AND EOMONTH(GETDATE())
+        -- NO DATE FILTER BY DEFAULT. Only add if requested.
+        -- AND t.DateColumn BETWEEN ...
    ```
 
 6. **CRITICAL RULES:**
    - **DO NOT DECLARE VARIABLES:** The frontend/API will handle declarations. Your output should START with `SELECT`.
-   - **NO PARAMETERS:** You must NOT use any `@Params` (like `@FromDate`, `@Status`, `@JobNumber`). All logic must be hardcoded or self-contained in the SQL.
-     - **Instead of `@FromDate`**, use: `DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0)` (Start of current month).
-     - **Instead of `@ToDate`**, use: `EOMONTH(GETDATE())` (End of current month).
+    - **NO PARAMETERS:** You must NOT use any `@Params` (like `@FromDate`, `@Status`, `@JobNumber`). All logic must be hardcoded or self-contained in the SQL.
+      - **If user asks for 'Last Month'**, use: `DATEADD(month, DATEDIFF(month, 0, GETDATE()) - 1, 0)` etc.
+      - **If user asks for 'Current Month'**, use: `DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0)` etc.
+      - **Otherwise, Default**: NO DATE FILTER.
    - **Multi-Tenancy:** ALWAYS filter by `CompanyId = {company_id}`.
    - **Soft Deletes:** ALWAYS filter `IsDeleted = 0`.
-   - **Recurring Jobs (CRITICAL):** When querying recurring jobs (e.g., Visits, Schedules), the 'Start Time' and 'End Time' in the database might be the *series* start/end. You MUST construct the actual instance datetime using the `VisitDate` (or equivalent) combined with the time component of the start/end columns.
-     - Example: `DATEADD(day, DATEDIFF(day, '19000101', VisitDate), CAST(StartTime AS DATETIME))`
-     - Use this computed date for the SELECT clause AND the `@FromDate/@ToDate` filter.
-   - **No Technical Columns:** ABSOLUTELY NO technical/ID columns in SELECT unless explicitly requested.
-   - **ENUM/LOOKUP COLUMNS (CRITICAL):** Check the schema description for any column that defines a mapping (e.g., "1=Created, 2=Scheduled").
-     - **FILTERING:** Use the **INTEGER** value (e.g., `JobStatus IN (2, 3)`).
-     - **SELECTING:** Select the raw column (e.g., `JobStatus`). The system will automatically map it to the human-readable name.
+   - **String Aggregation (CRITICAL):**
+     - **NEVER use `DISTINCT` inside `STRING_AGG`** (e.g. `STRING_AGG(DISTINCT Name, ',')` is INVALID in SQL Server).
+     - **Workaround:** Select distinct values in a subquery/CTE first, then aggregate.
+     - **Example:** `SELECT STRING_AGG(Name, ', ') FROM (SELECT DISTINCT Name FROM T) Sub`
+   - **Date Overflow:**
+     - Avoid `DATEDIFF(MILLISECOND, ...)` or `(SECOND, ...)` on dates that might be far apart (e.g. defaults like '1900-01-01'). Use `DATEDIFF(DAY, ...)` for ranking if possible.
+   - **Recurring Jobs:** Construct instance datetime using `VisitDate` + `StartTime` logic if needed.
+   - **No Technical Columns:** ABSOLUTELY NO technical/ID columns in SELECT unless explicitly requested (e.g. `JobId`).
+   - **Schema Compliance:**
+     - **CHECK EVERY COLUMN:** Do not assume `JobId` exists in `JobSchedule` if the schema doesn't show it. It might be `Id` or `JobScheduleId`.
+     - **Trust the provided Schema JSON strictly.**
+   - **ENUM/LOOKUP HANDLING (MANDATORY):**
+     - **CHECK THE SCHEMA:** For every column you select, check its `description` in the provided schema.
+     - **DYNAMIC TRANSLATION:** If the description defines a mapping (e.g., "1=Created, 2=Scheduled"), you **MUST** generate a `CASE` statement to translate the integer values into their string representations.
+     - **NO RAW INTEGERS:** Never output the raw integer for a verified Enum column.
+     - **Example:**
+       If schema says `Example: 1=Hello, 2=World`:
+       ```sql
+       CASE [Example]
+           WHEN 1 THEN 'Hello'
+           WHEN 2 THEN 'World'
+           ELSE CAST([Example] AS VARCHAR)
+       END AS [Example]
+       ```
 
 7. **COMMON PITFALLS TO AVOID:**
    - Don't compare string IDs with integer IDs.
    - Don't use string concatenation for multiple IDs.
    - Ensure data types match in WHERE conditions and JOINs.
 
-8. **THINK STEP BY STEP:**
-   1. What information is the user asking for?
-   2. Which tables contain this information?
-   3. How should these tables be joined?
-   4. What is the primary date column for the `@FromDate`/`@ToDate` filter?
-   5. For each selected column, have I added the corresponding dynamic filter?
-   6. Did I handle recurring job dates correctly?
-   7. Did I exclude technical columns?
+8. **THINK STEP BY STEP (GUIDED THINKING):**
+   - **Step 1: Analyze Request Type:** Is this a new report or a modification?
+   - **Step 2: Review Previous Columns and query:**
+     - Previous Columns: {previous_columns}
+     - *Decision:* If modifying, start with these columns.
+   - **Step 3: Modify Columns (CRITICAL):**
+     - **START** with the complete list of Previous Columns.
+     - **ADD** requested columns (e.g., "Modified Date").
+     - **REMOVE** columns **ONLY** if the user explicitly says "remove X" or "drop X".
+     - **FORBIDDEN:** Do NOT add or drop any column silently. If in doubt, keep it.
+     - Translate Enums? (Check schema).
+   - **Step 4: Filters & Logic:**
+     - Apply date filters (Default: NO DATE FILTER unless explicitly requested).
+     - Apply CompanyId/IsDeleted.
+     - Apply specific filters requested.
+   - **Step 5: Finalize:**
+     - Which tables contain this information?
+     - How should these tables be joined?
+     - For each selected column, have I added the corresponding dynamic filter?
+     - Review the final query.
+     - Ensure it matches the user's intent.
+     - Ensure it's valid SQL.
 
 9. **OUTPUT FORMAT:**
    - Return ONLY the SQL query inside <sql> tags.
@@ -517,6 +549,7 @@ Follow these steps to generate the best possible query:
 DATABASE SCHEMA:
 {schema}
 
+Error history (if any):
 {error_history}
 """,
             ),
@@ -546,6 +579,7 @@ def table_selector(state: AgentState) -> AgentState:
     try:
         log_agent_step("TableSelector", "Starting table selection", {"user_query": state["user_query"]})
         description_a = state.get("description_a", DESCRIPTION_A)
+        previous_tables = state.get("selected_tables", [])
         prompt = ChatPromptTemplate.from_messages(
             [
                 (
@@ -553,18 +587,29 @@ def table_selector(state: AgentState) -> AgentState:
                     """You are a database expert. Select relevant tables for the user's report request.
     AVAILABLE TABLES:
     {table_descriptions}
+    
+    PREVIOUSLY SELECTED TABLES: {previous_tables}
+    
     USER QUERY: {user_query}
+    
     INSTRUCTIONS:
-    1. Select tables necessary for the report.
-    2. Return JSON: {{"tables": ["Table1", "Table2"]}}
+    1. If the user is modifying an existing report (e.g. "add/removes column(s)"), you MUST RETAIN the Previously Selected Tables and ADD new ones.
+    2. If the user is starting a fresh request, select only what is needed.
+    3. Return JSON: {{"tables": ["Table1", "Table2"]}}
     """,
                 )
             ]
         )
         chain = prompt | fast_llm | JsonOutputParser()
-        response = chain.invoke({"table_descriptions": description_a, "user_query": state["user_query"]})
+        response = chain.invoke({
+            "table_descriptions": description_a, 
+            "user_query": state["user_query"],
+            "previous_tables": ", ".join(previous_tables)
+        })
         selected_tables = response.get("tables", [])
-        log_agent_step("TableSelector", "Selected tables", {"selected_tables": selected_tables})
+        # Fallback: if additive but empty, keep previous? No, let LLM decide based on prompt.
+        
+        log_agent_step("TableSelector", "Selected tables", {"selected_tables": selected_tables, "previous": previous_tables})
         return {**state, "selected_tables": selected_tables}
     except Exception as e:
         log_error("TableSelector", e)
@@ -629,6 +674,10 @@ def query_generator(state: AgentState) -> AgentState:
 
     try:
         messages = state.get("messages", [HumanMessage(content=state["user_query"])])
+        previous_columns = state.get("columns", [])
+        
+        # Format previous columns for prompt
+        prev_cols_str = ", ".join(previous_columns) if previous_columns else "None"
         
         response = chain.invoke(
             {
@@ -636,6 +685,7 @@ def query_generator(state: AgentState) -> AgentState:
                 "schema": json.dumps(table_schemas, indent=2),
                 "user_query": state["user_query"],
                 "error_history": formatted_error_history,
+                "previous_columns": prev_cols_str,
                 "company_id": state["company_id"],
             }
         )
@@ -670,12 +720,14 @@ def query_generator(state: AgentState) -> AgentState:
         # Validate SQL syntax
         is_valid, validation_error = validate_sql_syntax(generated_query)
         if not is_valid:
-            return {
-                **state,
-                "generated_query": generated_query, # Persist for debugging
-                "error": f"SQL validation failed: {validation_error}",
-                "iteration_count": iteration + 1,
-            }
+            # changed to warning - let the DB engine decide
+            log_agent_step("QueryGenerator", "SQL Validation Warning (proceeding anyway)", {"error": validation_error})
+            # return {
+            #     **state,
+            #     "generated_query": generated_query, # Persist for debugging
+            #     "error": f"SQL validation failed: {validation_error}",
+            #     "iteration_count": iteration + 1,
+            # }
 
         return {
             **state,
@@ -750,10 +802,23 @@ def query_validator(state: AgentState) -> AgentState:
             "generated_query": query # We return the ORIGINAL query (template), not the validation query
         }
     except Exception as e:
-        log_error("QueryValidator", e)
+        error_str = str(e)
+        log_error("QueryValidator", error_str)
+        
+        # Enhance error message for the Agent
+        feedback_msg = f"SQL Execution Failed: {error_str}"
+        
+        if "Invalid column name" in error_str:
+            feedback_msg += "\n\nHINT: Check the schema. The column you are trying to use does not exist. Do not hallucinate columns."
+        elif "datediff function resulted in an overflow" in error_str:
+            feedback_msg += "\n\nHINT: You are using DATEDIFF on dates that are too far apart (e.g., default 1900-01-01 vs NOW). Use a larger unit like DAY or HOUR, or handle NULLs/Defaults."
+        elif "Incorrect syntax near" in error_str:
+            if "STRING_AGG" in query_upper:
+                feedback_msg += "\n\nHINT: standard STRING_AGG does not support DISTINCT directly in some versions. Use a subquery to distinct first."
+        
         return {
             **state,
-            "error": str(e),
+            "error": feedback_msg,
             "iteration_count": iteration
         }
 
@@ -767,7 +832,7 @@ def query_executor(state: AgentState) -> AgentState:
         return {**state, "error": "No query generated"}
     
     try:
-        from langgraph_sql_agent_chat import engine
+        from services.langgraph_sql_agent_chat import engine
         from sqlalchemy import text
         import re
         
@@ -788,7 +853,18 @@ def query_executor(state: AgentState) -> AgentState:
             columns = list(result.keys())
             rows = [dict(zip(columns, row)) for row in result.fetchall()]
             
-            return {**state, "execution_results": rows, "columns": columns}
+            # Append AI Message to history
+            msg_content = f"I've generated a report with **{len(rows)} rows** based on your query."
+            
+            # Embed data for historical restoration
+            report_data = {
+                "columns": columns,
+                "execution_results": rows,
+                "sql_query": state.get("generated_query") or state.get("sql")
+            }
+            ai_msg = AIMessage(content=msg_content, additional_kwargs={"data": report_data})
+
+            return {**state, "execution_results": rows, "columns": columns, "messages": [ai_msg]}
 
     except Exception as e:
         return {**state, "error": f"Execution failed: {str(e)}"}
@@ -823,34 +899,42 @@ workflow.add_conditional_edges(
 )
 workflow.add_edge("query_executor", END)
 
-app = workflow.compile(checkpointer=MemorySaver())
 
-def run_report_generation(query: str, company_id: int = 1, thread_id: str = None) -> Dict[str, Any]:
+# Persistence
+try:
+    MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+    client = MongoClient(MONGODB_URI)
+    checkpointer = MongoDBSaver(client, db_name="checkpointing_db", collection_name="checkpoints")
+except Exception as e:
+    print(f"Warning: MongoDB connection failed. Falling back to MemorySaver. Error: {e}")
+    checkpointer = MemorySaver()
+
+app = workflow.compile(checkpointer=checkpointer)
+
+async def run_report_generation(query: str, company_id: int = 1, thread_id: str = None) -> Dict[str, Any]:
     
     # Generate a thread ID if one wasn't provided
     if not thread_id:
-        thread_id = str(uuid.uuid4())
+        thread_id = f"report-{uuid.uuid4()}"
         
     config = {"configurable": {"thread_id": thread_id}}
     
     inputs = {
         "user_query": query,
         "company_id": company_id,
-        "selected_tables": [],
-        "table_schemas": {},
-        "generated_query": "",
-        "error": None,
-        "iteration_count": 0,
         "max_iterations": 3,
+        "iteration_count": 0, # Reset for new turn
+        "error": None, # Reset for new turn
         "description_a": DESCRIPTION_A,
         "messages": [HumanMessage(content=query)],
-        "execution_results": [],
-        "columns": []
+        # Do NOT reset selected_tables, table_schemas, columns, execution_results here.
+        # Let state persistence handle them. Nodes use .get() to handle missing keys on first run.
     }
     
     try:
         # Use simple invoke. Logic handles appending messages via reducer.
-        result = app.invoke(inputs, config=config)
+        # Using ainvoke for async execution which leverages run_in_executor for DB ops
+        result = await app.ainvoke(inputs, config=config)
         return {
             "sql_query": result.get("generated_query"),
             "error": result.get("error"),

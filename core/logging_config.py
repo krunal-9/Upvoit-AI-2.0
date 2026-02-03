@@ -1,34 +1,13 @@
 import logging
 import os
+import json
 from datetime import datetime
 from typing import Any, Dict, Optional, Union
 
 # Ensure logs directory exists
 os.makedirs("logs", exist_ok=True)
 
-LOG_DIR = "logs"
-MAX_LOG_SIZE_MB = 5
-MAX_LOG_SIZE = MAX_LOG_SIZE_MB * 1024 * 1024
-
-def get_daily_log_file() -> str:
-    """Returns today's log file path."""
-    date_str = datetime.now().strftime("%Y%m%d")
-    base_file = os.path.join(LOG_DIR, f"agent_{date_str}.log")
-
-    # If file doesn't exist, use it
-    if not os.path.exists(base_file):
-        return base_file
-
-    # If file exceeds size, rotate with incremental suffix
-    index = 1
-    rotated_file = base_file
-    while os.path.exists(rotated_file) and os.path.getsize(rotated_file) > MAX_LOG_SIZE:
-        rotated_file = os.path.join(LOG_DIR, f"agent_{date_str}_{index}.log")
-        index += 1
-
-    return rotated_file
-
-# Create a formatter with colors
+# Create a formatter with colors for console
 class ColorFormatter(logging.Formatter):
     grey = "\x1b[38;20m"
     yellow = "\x1b[33;20m"
@@ -53,27 +32,46 @@ class ColorFormatter(logging.Formatter):
         formatter = logging.Formatter(log_fmt, datefmt='%Y-%m-%d %H:%M:%S')
         return formatter.format(record)
 
+# JSON Formatter for Audit Logs
+class JSONFormatter(logging.Formatter):
+    def format(self, record):
+        log_record = {
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "module": record.module,
+            "function": record.funcName,
+            "line": record.lineno
+        }
+        
+        # Add structured data if available
+        if hasattr(record, "data"):
+            log_record["data"] = record.data
+            
+        # Add exception info if available
+        if record.exc_info:
+            log_record["exception"] = self.formatException(record.exc_info)
+            
+        return json.dumps(log_record)
+
 # Configure root logger
 def configure_logging():
     # Create a timestamp for the log file
-    log_file = get_daily_log_file()
-
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = os.path.join("logs", f"audit_{timestamp}.json")
     
     # Clear any existing handlers
     root_logger = logging.getLogger()
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
     
-    # Configure file handler
+    # Configure file handler with JSON formatter
     file_handler = logging.FileHandler(log_file, encoding='utf-8')
-    file_handler.setLevel(logging.DEBUG)
-    file_formatter = logging.Formatter(
-        '%(asctime)s | %(levelname)-10s | %(name)-15s | %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    file_handler.setFormatter(file_formatter)
+    file_handler.setLevel(logging.INFO) # Audit logs usually need INFO level
+    file_handler.setFormatter(JSONFormatter())
     
-    # Configure console handler
+    # Configure console handler with Color formatter
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(ColorFormatter())
@@ -81,12 +79,20 @@ def configure_logging():
     # Add handlers to root logger
     root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
-    root_logger.setLevel(logging.DEBUG)
+    root_logger.setLevel(logging.INFO)
+
+    # Suppress noisy loggers
+    logging.getLogger("watchfiles").setLevel(logging.WARNING)
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+
+    logging.getLogger("pymongo").setLevel(logging.WARNING)
+    logging.getLogger("pymongo.connection").setLevel(logging.WARNING)
+    logging.getLogger("pymongo.pool").setLevel(logging.WARNING)
+    logging.getLogger("pymongo.server").setLevel(logging.WARNING)
     
     return log_file
 
-# Initialize logging
-log_file = configure_logging()
+
 logger = logging.getLogger(__name__)
 
 def _format_data(data: Any, indent: int = 2) -> str:
@@ -119,18 +125,13 @@ def log_agent_step(
     """
     log_level = getattr(logging, level.upper(), logging.INFO)
     
-    # Format the log message with agent name and message
-    log_msg = f"{agent_name}: {message}"
+    # Create a logger for the specific agent
+    agent_logger = logging.getLogger(agent_name)
     
-    # Add formatted data if provided
-    if data is not None and len(data) > 0:
-        try:
-            formatted_data = '\n'.join(f"{k}: {_format_data(v)}" for k, v in data.items())
-            log_msg = f"{log_msg}\n{formatted_data}"
-        except Exception as e:
-            logger.warning(f"Failed to format log data: {e}")
+    # Pass the data dict as an extra field so JSONFormatter can pick it up
+    extra = {"data": data} if data else {}
     
-    logger.log(log_level, log_msg)
+    agent_logger.log(log_level, message, extra=extra)
 
 def log_error(
     agent_name: str,
@@ -153,11 +154,3 @@ def log_error(
         **({} if context is None else context)
     }
     log_agent_step(agent_name, "Error occurred", error_data, level)
-
-# Example usage
-if __name__ == "__main__":
-    log_agent_step("TestAgent", "This is an info message", {"key": "value"})
-    try:
-        1 / 0
-    except Exception as e:
-        log_error("TestAgent", e, {"additional": "context"})

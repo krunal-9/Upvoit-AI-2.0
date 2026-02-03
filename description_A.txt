@@ -67,6 +67,8 @@ Primary Key: CompanyID
 Foreign Keys: Timezone->Timezone(Id),IndustryId->Industry(Id)
 
 # Users
+IMPORTANT - The Users table does NOT contain CompanyId.
+IMPORTANT - All company relationships must be resolved through the CompanyUsers table
 Description: The Users table stores information about all individuals who interact with the system, including employees, administrators, and contractors. The table includes fields for personal information (name, email, phone, address) and login details (email, password).
 Primary Key: UserID
 Foreign Keys: 
@@ -189,6 +191,8 @@ Foreign Keys: (none)
 
 # reminder
 Description: The reminder table stores scheduled reminders for jobs, invoices, tasks, or other activities within a company. Each record represents a single reminder and includes details about timing, recurrence, recipients, and notification preferences.
+IMPORTANT - DUPLICATE HANDLING: Always filter by **IsParent = 1** to retrieve unique reminder chains.
+IMPORTANT - DATE RANGE: For 'IsParent=1', use **StartDate** and **EndDate** overlap (StartDate < RangeEnd AND EndDate > RangeStart) to find active reminders in a period. Do NOT filter by 'ReminderDate'.
 Primary Key: Id
 Foreign Keys: CompanyID->Companies(CompanyID)
 
@@ -287,6 +291,7 @@ Foreign Keys: CompanyID->Companies(CompanyID),ClientId->Clients(ClientId),Invoic
 
 # expenses
 Description: The expenses table stores detailed information about all job-related and direct business expenses. It is primarily used for financial analysis, including calculating profit margins, tracking billable and non-billable costs, and managing reimbursements or payments. Each record represents a single expense entry linked to clients, companies, accounts, users, or specific jobs.
+IMPORTANT - REIMBURSABLE DEFINITION: Reimbursable Expense means UserId IS NOT NULL. Do NOT use 'IsBillable'.
 Primary Key: Id
 Foreign Keys: ClientId->Clients(ClientId),CompanyId->Companies(CompanyID),AccountCodeId->AccountCode(Id),UserId->Users(UserID),JobId->Job(Id),AllowanceId->Allowance(AllowanceId)
 
@@ -300,6 +305,7 @@ Description: The Request table stores requests submitted by clients. It tracks d
 Within the Request module, there is an On-Site Assessment feature, where users can schedule a date and time for the assessment and assign it to a team and technicians.
 Primary Key: Id
 Foreign Keys: ClientId->Clients(ClientId),ClientPropertyId->ClientProperty(ID),TypeId->JobbType(Id),CompanyID->Companies(CompanyID)
+IMPORTANT: For Assessment Date/Time, JOIN with 'JobSchedule' (using RequestId). Do NOT use 'RequestDetails'.
 
 # requestAttachment
 Description: The requestAttachment table stores files or documents related to a client request, such as photos, PDFs, or supporting documents.
@@ -422,8 +428,3 @@ Primary Key: Id
 Description: The RequestDetails table stores detailed information related to a customer request, including service descriptions, assessment dates/times, scheduling preferences
 Primary Key: Id
 ForeignKey: RequestId -> Request(Id) , CompanyId -> Companies(CompanyID)
-
-# SubContractor
-Description: The Subcontactor table stores the information about Subcontractors
-Primary Key: SubContractorId
-Foreign Keys: CompanyId -> Companies(CompanyID),CountryId -> Countries(CountryID)
