@@ -137,6 +137,7 @@ def get_chart_generation_prompt() -> ChatPromptTemplate:
     3. **GENERATE CHART CONFIG:**
        - Create a JSON configuration for the chart.
        - `title`: A clear, descriptive title.
+         - Chart titles MUST NOT include anything like company IDs, company numbers, filters, chart types, or text in parentheses (e.g., "(Company 3)", "(Dot Plot)").
        - `type`: 'pie', 'bar', or 'line'.
        - `labels`: The column name for the X-axis / category (string).
        - `values`: An ARRAY of one or more column names used for Y-axis values.
